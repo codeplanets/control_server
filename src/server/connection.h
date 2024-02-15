@@ -1,6 +1,7 @@
 #pragma once
 
-#include "socket.h"
+#include "tcpsocket.h"
+#include <iostream>
 
 namespace core {
     namespace server {
@@ -9,15 +10,15 @@ namespace core {
             friend class Server;
 
         protected:
-		    Socket*	m_pSocket;
+		    TcpSocket*	m_pSocket;
 		    std::string m_strClientIP;
 
         public:
-			Connection(Socket* pSocket);
+			Connection(TcpSocket* pSocket);
             virtual ~Connection();
 
-            virtual ECODE SetAcceptedSocket(SOCKET hNewSocket) { return m_pSocket->Assign(hNewSocket); }
-            virtual Socket* Raw(void) {	return m_pSocket; }
+            virtual ECODE SetAcceptedSocket(SOCKET hNewSocket) { return m_pSocket->assign(hNewSocket); }
+            virtual TcpSocket* Raw(void) {	return m_pSocket; }
 
             virtual void OnConnect(void) = 0;
             virtual void OnClose(void) = 0;

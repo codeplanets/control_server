@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../formatter/message.h"
-#include "socket.h"
+#include "tcpsocket.h"
 
 namespace core {
     namespace server {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 namespace core {
     
     namespace formatter {
@@ -60,10 +62,10 @@ namespace core {
 
             unsigned char stx;
             unsigned char cmd;
-            CAddress fromAddr;
-            CAddress toAddr;
+            Address fromAddr;
+            Address toAddr;
             unsigned short length;
-            unsigned char payload[length - 2];
+            unsigned char payload[MAX_RAW_BUFF - 2];
             unsigned char crc8;
             unsigned char etx;
         };

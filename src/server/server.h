@@ -1,6 +1,10 @@
 #pragma once
 
 #include <set>
+#include <vector>
+#include <iostream>
+#include "connection.h"
+#include "syncqueue.h"
 
 namespace core {
     namespace server {
@@ -8,6 +12,7 @@ namespace core {
             ////////////////////////////////
             // Disconnect types
             ////////////////////////////////
+            DISCONNECT_TYPE_UNDEFINED					= 0,
         };
 
         struct ST_SYNCSERVER_INIT {
@@ -18,7 +23,7 @@ namespace core {
             // sync server init
             ////////////////////////////////
             ST_SYNCSERVER_INIT(void)
-            : nDisconnectType(NONE)
+            : nDisconnectType(DISCONNECT_TYPE_UNDEFINED)
             , connections() {}
         };
 

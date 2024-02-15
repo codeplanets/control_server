@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <regex>
+
 #define MAX_TASK_NUM	1
 #define MAX_EXTEND_NUM	1
 #define MAX_RAW_BUFF    4096
@@ -24,3 +27,5 @@
 #define SETUP_INFO_ACK (unsigned char)0x18
 #define RTU_STATUS_REQ (unsigned char)0x19
 #define RTU_STATUS_RES (unsigned char)0x1F
+
+typedef size_t SOCKET;
