@@ -29,3 +29,9 @@
 #define RTU_STATUS_RES (unsigned char)0x1F
 
 typedef size_t SOCKET;
+
+namespace core {
+    namespace common {
+        void sleep(unsigned int dwMilliSec);
+    }
+}
