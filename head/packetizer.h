@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../formatter/message.h"
+#include "message.h"
 #include "tcpsocket.h"
 
 namespace core {

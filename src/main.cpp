@@ -6,41 +6,16 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#define MAX_POOL 3
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#define LISTEN_BACKLOG 15
 
-#include <semaphore.h>
-#include <fcntl.h>
-#define SERVER_SEMAPHORE "control_server"
+#include "sem.h"
 
 using namespace std;
-
-sem_t* gRunning = SEM_FAILED;
-
-namespace core {
-    bool isRunning() {
-		bool bRet = false;
-		gRunning = ::sem_open(SERVER_SEMAPHORE, O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 1);
-		if (gRunning == SEM_FAILED) {
-			if (errno == EEXIST) {
-				bRet = true;
-                // sem_close(gRunning);
-                // sem_unlink(SERVER_SEMAPHORE);
-			}
-		}
-        return bRet;
-    }
-
-    void close_sem() {
-        if (gRunning != SEM_FAILED) {
-            sem_close(gRunning);
-            sem_unlink(SERVER_SEMAPHORE);
-        }
-    }
-}
-
 using namespace core;
 
 void sigint_handler(int signo) {
@@ -50,10 +25,10 @@ void sigint_handler(int signo) {
 void start_child(int sfd, int idx) {
     cout << "Start Child Process" << endl;
 
-    int cfd, ret_len;
-    socklen_t len_saddr;
-    char buf[40];
-    struct sockaddr_in saddr_c;
+    // int cfd, ret_len;
+    // socklen_t len_saddr;
+    // char buf[40];
+    // struct sockaddr_in saddr_c;
     /**
      * [ ] accept
      * ```
@@ -74,17 +49,17 @@ void start_child(int sfd, int idx) {
 int main(int argc, char *argv[]) {
 
     int rtuport = 5900;
-    int clientport = 5901;
+    // int clientport = 5901;
 
     int listener_rtu;
-    int listener_client;
+    // int listener_client;
 
     socklen_t len_saddr_rtu;
-    socklen_t len_saddr_client;
+    // socklen_t len_saddr_client;
 
-    if (isRunning() == true) {
+    if (common::isRunning() == true) {
         cout << "Already running server!" << endl;
-        exit(1);
+        exit(EXIT_SUCCESS);
     }
 
     cout << "Running server!" << endl;
@@ -101,7 +76,7 @@ int main(int argc, char *argv[]) {
      * listener_rtu = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
      * if (listener_rtu == -1) {
      *  logError("[TCP server] : Fail: rtu socket()");
-     *  exit(1);
+     *  exit(EXIT_SUCCESS);
      * }
      * struct sockaddr_in saddr_rtu;
      * saddr_rtu.sin_family = AF_INET;
@@ -111,7 +86,7 @@ int main(int argc, char *argv[]) {
      * listener_client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
      * if (listener_client == -1) {
      *  logError("[TCP server] : Fail: client socket()");
-     *  exit(1);
+     *  exit(EXIT_SUCCESS);
      * }
      * struct sockaddr_in saddr_client;
      * saddr_client.sin_family = AF_INET;
@@ -120,21 +95,57 @@ int main(int argc, char *argv[]) {
      * 
      * if (bind(listener_rtu, (struct sockaddr*)&saddr_rtu, sizeof(saddr_rtu)) == -1) {
      *  logError("[TCP server] : Fail: client bind()");
-     *  exit(0);
+     *  exit(EXIT_SUCCESS);
      * }
      * len_saddr_rtu = sizeof(saddr_rtu);
      * ```
      * 
     **/
 
-    pid_t pid = fork();
+    listener_rtu = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    if (listener_rtu == -1) {
+        cout << "[TCP server] : Fail: rtu socket()" << endl;
+        common::close_sem();
+        exit(EXIT_SUCCESS);
+    }
 
-    if (pid == 0)
-        cout << "[TCP server] Output from the child process." << pid << endl;
-    else
-        cout << "[TCP server] Output from the parent process." << pid << endl;
+    struct sockaddr_in saddr_rtu;
+    saddr_rtu.sin_family = AF_INET;
+    saddr_rtu.sin_addr.s_addr = htons(INADDR_ANY);
+    saddr_rtu.sin_port = htons(rtuport);
 
-    close_sem();
+    int optval = 1;
+    setsockopt(listener_rtu, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
+    if (bind(listener_rtu, (struct sockaddr*)&saddr_rtu, sizeof(saddr_rtu)) == -1) {
+        cout << "[TCP server] : Fail: client bind()" << endl;
+        common::close_sem();
+        exit(EXIT_SUCCESS);
+    }
+
+    len_saddr_rtu = sizeof(saddr_rtu);
+    if (rtuport == 0) {
+        getsockname(listener_rtu, (struct sockaddr *)&saddr_rtu, &len_saddr_rtu);
+    }
+
+    cout << "[TCP server] : Port : #" << ntohs(saddr_rtu.sin_port) << endl;
+    listen(listener_rtu, LISTEN_BACKLOG);
+    cout << "[TCP server] : listen" << endl;
+
+    for (int i = 0; i < MAX_POOL; i++) {
+        pid_t pid = fork();
+
+        if (pid == 0) {
+            cout << "[TCP server] Output from the child process." << pid << endl;
+            start_child(listener_rtu, i);
+        } else if (pid == -1) {
+            cout << "[TCP server] : Fail : fork()" << endl;
+        } else {
+            cout << "[TCP server] Output from the parent process." << pid << endl;
+        }
+    }
+    
+    common::close_sem();
     return 0;
 }
 
