@@ -1,7 +1,6 @@
 
 #include "tcpsocket.h"
 #include "socket.h"
-#include "socketdefine.h"
 #include "log.h"
 
 using namespace core::system;
