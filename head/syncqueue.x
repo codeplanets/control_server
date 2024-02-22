@@ -2,6 +2,7 @@
 
 #include <queue>
 
+
 namespace core
 {
 	template<typename T>
@@ -51,10 +52,10 @@ namespace core
 			
 		}
 
-		EWAIT Pop(T* pOutItem)
+		ECODE Pop(T* pOutItem)
 		{
-			EWAIT nRet;
-				return nRet;
+			ECODE nRet = EC_SUCCESS;
+			return nRet;
 		}
 	};
 }

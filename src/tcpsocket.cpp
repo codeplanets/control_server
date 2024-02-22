@@ -1,12 +1,13 @@
 
 #include "tcpsocket.h"
-#include "socket.h"
+#include "sock.h"
 #include "log.h"
 
 using namespace core::system;
 
 namespace core {
     namespace server {
+        TcpSocket::TcpSocket(int port) {}
         TcpSocket::TcpSocket(void) {}
         TcpSocket::~TcpSocket() {}
         ECODE TcpSocket::assign(SOCKET hAcceptedSocket) {

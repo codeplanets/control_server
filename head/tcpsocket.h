@@ -3,16 +3,14 @@
 #include "common.h"
 #include "errorcode.h"
 
+#include "sock.h"
+
 namespace core {
     namespace server {
-        class TcpSocket {
-            friend class Server;
-		    friend class Connection;
+        class TcpSocket : private core::system::socket {
             
-        protected:
-		    SOCKET m_socket;
-
         public:
+            TcpSocket(int port);
             TcpSocket(void);
             virtual ~TcpSocket();
 

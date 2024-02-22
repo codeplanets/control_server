@@ -1,0 +1,103 @@
+#include "criticalsection.h"
+#include "log.h"
+
+#include <pthread.h>
+#include <cstring>
+
+using namespace core::system;
+
+namespace core {
+    namespace common {
+        CriticalSection::CriticalSection(void)
+            : m_criticalSection(NULL)
+        {
+            m_criticalSection = initializeCriticalSection();
+            if( NULL == m_criticalSection )
+                logError("initializeCriticalSection calling failure");
+        }
+        CriticalSection::~CriticalSection(void)
+        {
+            if( NULL == m_criticalSection )
+                return;
+
+            deleteCriticalSection(m_criticalSection);
+            m_criticalSection = NULL;
+        }
+        void CriticalSection::enter(void)
+        {
+            if( NULL == m_criticalSection )
+            {
+                logError("Enter CriticalSection, m_criticalSection is NULL");
+                return;
+            }
+            enterCriticalSection(m_criticalSection);
+        }
+        void CriticalSection::leave(void)
+        {
+            if( NULL == m_criticalSection )
+            {
+                logError("Leave CriticalSection, m_criticalSection is NULL");
+                return;
+            }
+            leaveCriticalSection(m_criticalSection);
+        }
+        //////////////////////////////////////////////////////////////////////////
+
+        void* CriticalSection::initializeCriticalSection(void)
+        {
+            pthread_mutex_t* hMutex = new pthread_mutex_t;
+
+            // building mutex attribute for recursive lock
+            pthread_mutexattr_t tMutexAttr;
+            pthread_mutexattr_init(&tMutexAttr);
+            int nAttrErr = pthread_mutexattr_settype(&tMutexAttr, PTHREAD_MUTEX_RECURSIVE_NP);
+            if( nAttrErr )
+            {
+                logDebug("pthread_mutexattr_settype(&tMutexAttr, PTHREAD_MUTEX_RECURSIVE_NP) failure, %d, %s", nAttrErr, strerror(nAttrErr));
+                pthread_mutex_init(hMutex, NULL);	// always returns 0
+            }
+            else
+                pthread_mutex_init(hMutex, &tMutexAttr);
+
+            pthread_mutexattr_destroy(&tMutexAttr);
+            return hMutex;
+        }
+        void CriticalSection::deleteCriticalSection(void* hCS)
+        {
+            pthread_mutex_t* hMutex = (pthread_mutex_t*)hCS;
+            pthread_mutex_destroy(hMutex);
+            delete hMutex;
+        }
+        void CriticalSection::enterCriticalSection(void* hCS)
+        {
+            pthread_mutex_t* hMutex = (pthread_mutex_t*)hCS;
+            pthread_mutex_lock(hMutex);
+        }
+        void CriticalSection::leaveCriticalSection(void* hCS)
+        {
+            pthread_mutex_unlock((pthread_mutex_t*)hCS);
+        }
+
+        //////////////////////////////////////////////////////////////////////////
+        CriticalSection::Owner::Owner(CriticalSection& obj)
+            : m_Instance(obj)
+        {
+            if( NULL == m_Instance.m_criticalSection )
+            {
+                logError("EnterCriticalSection, m_criticalSection is NULL");
+                return;
+            }
+            m_Instance.enter();
+        }
+        CriticalSection::Owner::~Owner(void)
+        {
+            if( NULL == m_Instance.m_criticalSection )
+            {
+                logError("LeaveCriticalSection, m_criticalSection is NULL");
+                return;
+            }
+            m_Instance.leave();
+        }
+        //////////////////////////////////////////////////////////////////////////
+    }
+}

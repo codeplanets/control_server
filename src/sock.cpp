@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "socket.h"
+#include "sock.h"
 
 using namespace std;
 
