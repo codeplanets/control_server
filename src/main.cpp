@@ -145,6 +145,14 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    if (setsockopt(listener_rtu, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) == -1) {
+        cout << "[TCP server] : [Parent process] : Fail: connection setsockopt()" << endl;
+        close(listener_rtu);
+        // 종료전 Multiple Running 방지 해제
+        common::close_sem();
+        exit(EXIT_SUCCESS);
+    }
+
     // 설정한 포트번호로 바인딩
     if (bind(listener_rtu, (struct sockaddr*)&saddr_rtu, len_saddr_rtu) == -1) {
         cout << "[TCP server] : [Parent process] : Fail: bind()" << endl;
@@ -208,23 +216,21 @@ int main(int argc, char *argv[]) {
 
     while(1) {
         cout << ":5900" << endl; sleep(1);
-        while ((connection_rtu = accept(listener_rtu, (struct sockaddr*)&connectSocket, (socklen_t *)&connectSocketLength)) >= 0) {
+        while ((connection_rtu = accept(listener_rtu, (struct sockaddr*)&connectSocket, &connectSocketLength)) >= 0) {
             // Client 정보 수집
             getpeername(connection_rtu, (struct sockaddr*)&peerSocket, &connectSocketLength);
             char peerName[sizeof(peerSocket.sin_addr) + 1] = { 0, };
             sprintf(peerName, "%s", inet_ntoa(peerSocket.sin_addr));
 
             // 접속이 안되었을 때는 출력 x
-            if(strcmp(peerName,"0.0.0.0") != 0) {
+            if (strcmp(peerName,"0.0.0.0") != 0) {
                 cout << "[TCP server] : [Parent process] : Client : " << peerName << endl;
             }
 
-            int optval = 1;
-            if (setsockopt(connection_rtu, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) == -1) {
-                cout << "[TCP server] : [Parent process] : Fail: connection setsockopt()" << endl;
-                close(connection_rtu);
-                break;
-            }
+            int sockopt;
+            socklen_t len_sockopt;
+            getsockopt(connection_rtu, SOL_SOCKET, SO_KEEPALIVE, &sockopt, &len_sockopt);
+            cout << "[TCP server] : [Parent process] : Client KeepAlive Option : " << sockopt << endl;
 
             pid = fork();
 

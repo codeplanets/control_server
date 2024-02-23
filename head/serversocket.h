@@ -3,16 +3,17 @@
 #include "common.h"
 #include "errorcode.h"
 
-#include "sock.h"
+#include "commsock.h"
 
 namespace core {
     namespace server {
-        class TcpSocket : private core::system::socket {
-            
+        class ServerSocket {
+        private:
+            system::CommSock sock;
         public:
-            TcpSocket(int port);
-            TcpSocket(void);
-            virtual ~TcpSocket();
+            ServerSocket(int port);
+            ServerSocket(void);
+            virtual ~ServerSocket();
 
             virtual ECODE assign(SOCKET hAcceptedSocket);
             virtual ECODE connect(const char* pszIP, unsigned short port, unsigned int timeOut);

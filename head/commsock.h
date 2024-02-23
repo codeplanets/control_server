@@ -9,23 +9,26 @@
 #include <string>
 #include <arpa/inet.h>
 
-typedef size_t				SOCKET;
+typedef int	SOCKET;
 
 namespace core {
     namespace system {
-        class socket {
+        class CommSock {
         private:
+            int port;
             SOCKET m_sock;
-            sockaddr_in m_addr;
+            struct sockaddr_in m_addr;
+            socklen_t m_len_addr;
+            int m_listen_backlog;
 
         public:
-            socket();
-            virtual ~socket();
+            CommSock();
+            virtual ~CommSock();
 
             bool create();
             bool bind(const int port);
             bool listen() const;
-            bool accept(socket&) const;
+            bool accept(CommSock&) const;
 
             bool send(const char* buf, int len, int flags) const;
             int recv(char* buf, int len, int flags) const;

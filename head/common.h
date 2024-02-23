@@ -30,7 +30,7 @@
 #define RTU_STATUS_REQ (unsigned char)0x19
 #define RTU_STATUS_RES (unsigned char)0x1F
 
-typedef size_t SOCKET;
+typedef int SOCKET;
 
 namespace core {
     namespace common {
