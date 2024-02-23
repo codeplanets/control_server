@@ -1,28 +1,19 @@
 #pragma once
 
-#include "tcpsocket.h"
-#include <iostream>
+#include "serversocket.h"
 
 namespace core {
     namespace server {
         class Connection {
-
-            friend class Server;
-
         protected:
-		    TcpSocket*	m_pSocket;
-		    std::string m_strClientIP;
+		    ServerSocket* m_pSocket;
+            pid_t m_pid;
 
         public:
-			Connection(TcpSocket* pSocket);
+			Connection(pid_t pid, ServerSocket* pSocket);
             virtual ~Connection();
-
-            virtual ECODE SetAcceptedSocket(SOCKET hNewSocket) { return m_pSocket->assign(hNewSocket); }
-            virtual TcpSocket* Raw(void) {	return m_pSocket; }
-
-            virtual void OnConnect(void) = 0;
-            virtual void OnClose(void) = 0;
-            virtual void OnRecv(void) = 0;
+            virtual ServerSocket* get_sock(void) { return m_pSocket; }
+            virtual pid_t get_pid(void) { return m_pid; }
         };
     }
 }

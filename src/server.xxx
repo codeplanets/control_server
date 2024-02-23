@@ -1,0 +1,76 @@
+#include "server.h"
+#include "errorcode.h"
+// #include "exception.h"
+
+#include <sys/socket.h>
+#include <netinet/ip.h>
+
+namespace core {
+    namespace server {
+        Server::Server()
+        : m_stInit()
+        , m_qReady()
+		, m_setConnected()
+		, m_listenSocket(-1 /*INVALID_SOCKET*/)
+		, m_listenThread(NULL)
+		, m_disconnectThread(NULL)
+		, m_bContinueLoop(false) {
+
+        }
+
+        Server::~Server() {
+
+        }
+
+        ECODE Server::Startup(const ST_SYNCSERVER_INIT & stInit) {
+            ECODE nRet = EC_SUCCESS;
+
+            try {
+                m_qReady.Create();
+                m_qDisconnected.Create();
+
+                nRet = m_ThreadPool.init(stInit.connections.size());
+                if (EC_SUCCESS != nRet) {
+                    throw exception_format("ThreadPool initialize faild, %d", nRet);
+                }
+
+                m_listenSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+                nRet = EC_INTERNAL_ERROR;
+
+            } catch (std::exception& e) {
+                return nRet;
+            }
+
+            return EC_SUCCESS;
+        }
+
+        void Server::Shutdown(void) {
+
+        }
+
+        struct ST_CONNECTION_THREAD_DATA {
+            Server* pServer;
+            Connection* pConnection;
+        };
+        
+        int ConnectionThreadCaller(void* pContext) {
+            ST_CONNECTION_THREAD_DATA* pData = (ST_CONNECTION_THREAD_DATA*)pContext;
+            pData->pServer->ConnectionThread(pData->pConnection);
+            delete pData;
+            return 0;
+        }
+
+        int Server::ListenThread(void* pContext) {
+            return 0;
+        }
+
+        int Server::DisconnectThread(void* pContext) {
+            return 0;
+        }
+
+        void Server::ConnectionThread(Connection* pConnection) {
+        }
+
+    }
+}
