@@ -3,9 +3,9 @@
 
 namespace core {
     namespace server {
-        Connection::Connection(TcpSocket* pSocket)
+        Connection::Connection(pid_t pid, ServerSocket* pSocket)
             : m_pSocket(pSocket)
-		    , m_strClientIP() {
+            , m_pid(pid) {
         }
         Connection::~Connection() {
             

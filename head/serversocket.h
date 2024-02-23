@@ -7,24 +7,17 @@
 
 namespace core {
     namespace server {
-        class ServerSocket {
-        private:
-            system::CommSock sock;
+        class ServerSocket : private core::system::CommSock {
         public:
+            ServerSocket(void) {}
             ServerSocket(int port);
-            ServerSocket(void);
             virtual ~ServerSocket();
 
-            virtual ECODE assign(SOCKET hAcceptedSocket);
-            virtual ECODE connect(const char* pszIP, unsigned short port, unsigned int timeOut);
-            virtual void close(void);
-
-            virtual ECODE send(const void* pBuff, size_t tBufSize, unsigned int timeOut);
-            virtual ECODE recv(void* pBuff, size_t tBufSize, unsigned int timeOut);
-
-        protected:
-            virtual ECODE sendWorker(size_t hSocket, const void* pBuff, size_t tBufSize, unsigned int timeOut, size_t* ptSent);
-            virtual ECODE recvWorker(size_t hSocket, void* pBuff, size_t tBufSize, unsigned int timeOut, size_t* ptRead);
+            bool accept(ServerSocket&);
+            void close(void);
+            
+            const ServerSocket& operator << (const u_char*) const;
+            const ServerSocket& operator >> (u_char*) const;
         };
     }
 }

@@ -9,6 +9,22 @@
 #include <unistd.h>
 #include <signal.h>
  
-#define PORT 20162
-#define BUFFER_SIZE 4096
-#define BUFF_SIZE 100 
+namespace core {
+    namespace server {
+        class ControlServerApplication {
+        protected:
+            const int max_pool = 50;
+            const int listen_backlog = 5;
+
+            void sigint_handler(int signo);
+            void sigchld_handler(int signo);
+            void start_child(int sfd, int idx);
+            void setChldSignal();
+            void setIntSignal();
+
+        public:
+            ControlServerApplication();
+            virtual ~ControlServerApplication();
+        };
+    }
+}

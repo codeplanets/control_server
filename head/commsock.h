@@ -15,26 +15,26 @@ namespace core {
     namespace system {
         class CommSock {
         private:
-            int port;
             SOCKET m_sock;
             struct sockaddr_in m_addr;
             socklen_t m_len_addr;
             int m_listen_backlog;
 
         public:
-            CommSock();
+            CommSock(void);
             virtual ~CommSock();
 
-            bool create();
+            bool create(void);
             bool bind(const int port);
-            bool listen() const;
+            bool listen(void) const;
             bool accept(CommSock&) const;
+            void close(void);
 
-            bool send(const char* buf, int len, int flags) const;
-            int recv(char* buf, int len, int flags) const;
+            bool send(const u_char* buf, size_t len, int flags=0) const;
+            int recv(u_char* buf, size_t len, int flags=0) const;
 
             void set_non_blocking(const bool);
-            bool is_valid() const {return m_sock != -1; }
+            bool is_valid(void) const {return m_sock != -1; }
         };
     }
 }

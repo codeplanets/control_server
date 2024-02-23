@@ -2,34 +2,55 @@
 #include "serversocket.h"
 #include "commsock.h"
 #include "log.h"
+#include "errorcode.h"
+#include "socketexception.h"
 
+using namespace std;
 using namespace core::system;
 
 namespace core {
     namespace server {
-        ServerSocket::ServerSocket(int port) {}
-        ServerSocket::ServerSocket(void) {}
-        ServerSocket::~ServerSocket() {}
-        ECODE ServerSocket::assign(SOCKET hAcceptedSocket) {
-            return EC_SUCCESS;
-        }
-        ECODE ServerSocket::connect(const char* pszIP, unsigned short port, unsigned int timeOut) {
-            return EC_SUCCESS;
-        }
-        void ServerSocket::close(void) {}
+        ServerSocket::ServerSocket(int port) {
+            if (!CommSock::create()) {
+                throw SocketException(EC_NOT_CREATED, "Could not create server socket.");
+            }
+            cout << "[ServerSocket] : create socket()" << endl;
 
-        ECODE ServerSocket::send(const void* pBuff, size_t tBufSize, unsigned int timeOut) {
-            return EC_SUCCESS;
+            CommSock::set_non_blocking(true);
+
+            if (!CommSock::bind(port)) {
+                throw SocketException(EC_BIND_FAILURE, "Could not bind to port.");
+            }
+            cout << "[ServerSocket] : bind()" << endl;
+
+            if (!CommSock::listen()) {
+                throw SocketException(EC_LISTEN_FAILURE, "Could not listen to socket.");
+            }
+            cout << "[ServerSocket] : listen()" << endl;
         }
-        ECODE ServerSocket::recv(void* pBuff, size_t tBufSize, unsigned int timeOut) {
-            return EC_SUCCESS;
+        
+        ServerSocket::~ServerSocket() { }
+
+        bool ServerSocket::accept(ServerSocket& sock) {
+            return CommSock::accept(sock);
         }
 
-        ECODE ServerSocket::sendWorker(size_t hSocket, const void* pBuff, size_t tBufSize, unsigned int timeOut, size_t* ptSent) {
-            return EC_SUCCESS;
+        void ServerSocket::close(void) {
+            CommSock::close();
         }
-        ECODE ServerSocket::recvWorker(size_t hSocket, void* pBuff, size_t tBufSize, unsigned int timeOut, size_t* ptRead) {
-            return EC_SUCCESS;
+
+        const ServerSocket& ServerSocket::operator << (const u_char* s) const {
+            if (!CommSock::send(s, sizeof(s))) {
+                throw SocketException(EC_WRITE_FAILURE, "Could not write to socket.");
+            }
+            return *this;
+        }
+
+        const ServerSocket& ServerSocket::operator >> (u_char* r) const {
+            if (!CommSock::recv(r, sizeof(r))) {
+                throw SocketException(EC_READ_FAILURE, "Could not read from socket.");
+            }
+            return *this;
         }
     }
 }

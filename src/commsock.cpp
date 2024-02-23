@@ -10,9 +10,8 @@ using namespace std;
 
 namespace core {
     namespace system {
-        CommSock::CommSock()
+        CommSock::CommSock(void)
          : m_sock(-1)
-         , port(0)
          , m_len_addr(0)
          , m_listen_backlog(5) {
             memset(&m_addr, 0, sizeof(m_addr));
@@ -24,7 +23,7 @@ namespace core {
             }
         }
 
-        bool CommSock::create() {
+        bool CommSock::create(void) {
             m_sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
             if(!is_valid()) {
                 cout << "[CommSock] : Failed create socket()" << endl;
@@ -65,7 +64,7 @@ namespace core {
             return true;
         }
 
-        bool CommSock::listen() const {
+        bool CommSock::listen(void) const {
             if(!is_valid()) {
                 return false;
             }
@@ -90,21 +89,27 @@ namespace core {
             }
         }
 
-        bool CommSock::send(const char* buf, int len, int flags) const {
-            int status = ::send(m_sock, buf, len, flags);
+        void CommSock::close(void) {
+            if(is_valid()) {
+                ::close(m_sock);
+            }
+        }
+
+        bool CommSock::send(const u_char* buf, size_t len, int flags) const {
+            ssize_t status = ::send(m_sock, buf, len, flags);
             if(status == -1) {
-                cout << "status == -1   errno == " << errno << "  in core::system::CommSock::send" << endl;
+                cout << "[CommSock] : status == -1   errno == " << errno << "  in core::system::CommSock::send" << endl;
                 return false;
             } else {
                 return true;
             }
         }
 
-        int CommSock::recv(char* buf, int len, int flags) const {
+        int CommSock::recv(u_char* buf, size_t len, int flags) const {
             memset(buf, 0, len + 1);
-            int status = ::recv(m_sock, buf, len, flags);
+            ssize_t status = ::recv(m_sock, buf, len, flags);
             if(status == -1) {
-                cout << "status == -1   errno == " << errno << "  in core::system::CommSock::recv" << endl;
+                cout << "[CommSock] : status == -1   errno == " << errno << "  in core::system::CommSock::recv" << endl;
                 return 0;
             } else if(status == 0) {
                 return 0;
