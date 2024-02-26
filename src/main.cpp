@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <signal.h>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
+#include <mqueue.h>     // mq_open()
 
 #include "sem.h"
 
@@ -31,7 +32,7 @@ const int listen_backlog = 5;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
-void start_child(int sfd, int idx);
+void start_child(ServerSocket newSock, int pid);
 void setChldSignal();
 void setIntSignal();
 
@@ -87,14 +88,14 @@ int main(int argc, char *argv[]) {
                 pid = fork();
 
                 if (pid == 0) {
-                    cout << "[TCP server] : [Child process]" << getpid() << "<<" << getppid() << endl;
+                    cout << "[TCP server] : [Child process]" << getpid() << " << " << getppid() << endl;
                     server.close();
 
-                    // start_child(listener_rtu, i);
+                    start_child(new_sock, getpid());
                     
                     sleep(10);
 
-                    cout << "[TCP server] : [Child process] : disconnect client...." << endl;
+                    cout << "[" << getpid() << "] : " << "disconnect client...." << endl;
                     
                     // Fork 되면서 child에서 erase 해도 Parent에는 erase 되지 않는다.
                     // parent child 공유되는게 필요
@@ -109,7 +110,7 @@ int main(int argc, char *argv[]) {
                     return 0;
 
                 } else if (pid == -1) {
-                    cout << "[TCP server] : Failed : fork()" << endl;
+                    cout << "[TCP server] : Failed : fork() : " << strerror(errno) << endl;
                     new_sock.close();
                     sleep(1);
                     continue;
@@ -177,28 +178,67 @@ void sigchld_handler(int signo) {
     }
 }
 
-void start_child(int sfd, int idx) {
-    cout << "Start Child Process" << endl;
+const char* name_posix_mq = "/my_mq_";
 
-    // int cfd, ret_len;
-    // socklen_t len_saddr;
-    // char buf[40];
-    // struct sockaddr_in saddr_c;
-    /**
-     * [ ] accept
-     * ```
-     * for(;;) {
-     *  cfd = accept(sfd, (struct sockaddr *)&saddr_c, &len_saddr);
-     *  if (cfd == -1) {
-     *      cout << "[Child] : Fail: accept()" << endl;
-     *      continue;
-     *  }
-     *  cout << "[Child"<< idx << "] Accept about socket " << cfd << endl;
-     * }
-     * ```
-     * [ ] recv data
-     * 
-    **/
+std::string get_mq_name(const char* name, int pid) {
+    string mq_name;
+    mq_name.append(name);
+    mq_name.append(std::to_string(pid));
+    cout << mq_name << endl;
+    return mq_name.c_str();
+}
+
+void start_child(ServerSocket newSock, int pid) {
+    cout << "[" << getpid() << "] : " << "Start Child Process" << endl;
+
+    // init 정보 수신
+    u_char data[MAX_RAW_BUFF];
+    newSock >> data;
+    cout << "[" << getpid() << "] : " << data << endl;
+
+    struct mq_attr mq_attrib = {.mq_maxmsg = 10, .mq_msgsize = 1024};
+    cout << "[" << getpid() << "] : " << "Create MQ......" << endl;
+
+    string mqname = get_mq_name(name_posix_mq, pid);
+    cout << "[" << getpid() << "] : " << mqname.c_str() << endl;
+
+    mqd_t mq_fd = ::mq_open(mqname.c_str(), O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, &mq_attrib);
+    if (mq_fd > 0) {
+        cout << "[" << getpid() << "] : " << "OK!" << endl;
+    } else {
+        if (errno == EEXIST) {
+            cout << "[" << getpid() << "] : " << "Open MQ......" << endl;
+            mq_fd = ::mq_open(mqname.c_str(), O_RDWR);
+            if (mq_fd == (mqd_t)-1) {
+                cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
+                return;
+            }
+            cout << "[" << getpid() << "] : " << "Open MQ" << endl;
+        } else {
+            cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
+            return;
+        }
+    }
+
+    const char* msg = "abcdefg";
+    size_t msg_len = sizeof(msg);
+
+    cout << "[" << getpid() << "] : " << "mq_send : " << msg << endl;
+    mq_send(mq_fd, msg, msg_len, 0);
+
+    char buf[4096];
+    mq_receive(mq_fd, buf, sizeof(buf), 0);
+    cout << "[" << getpid() << "] : " << "mq_receive : " << buf << endl;
+
+    sleep(1);
+
+    if (mq_close(mq_fd) < 0) {
+        cout << "[" << getpid() << "] : " << "Failed mq_close() : " << strerror(errno) << endl;
+    }
+
+    if (mq_unlink(mqname.c_str()) < 0) {
+        cout << "[" << getpid() << "] : " << "Failed mq_unlink() : " << strerror(errno) << endl;
+    }
 }
 
 void setChldSignal() {
