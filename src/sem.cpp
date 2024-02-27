@@ -1,5 +1,5 @@
 #include <iostream>
-#include <fcntl.h>
+#include <fcntl.h>   // O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
 #include "sem.h"
 
 using namespace std;

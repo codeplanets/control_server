@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "errorcode.h"
-
 #include "commsock.h"
 
 namespace core {
@@ -16,8 +15,8 @@ namespace core {
             bool accept(ServerSocket&);
             void close(void);
             
-            const ServerSocket& operator << (const u_char*) const;
-            const ServerSocket& operator >> (u_char*) const;
+            const ServerSocket& operator << (const DATA*) const;
+            const ServerSocket& operator >> (DATA*) const;
         };
     }
 }

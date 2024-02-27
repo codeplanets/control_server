@@ -8,7 +8,7 @@ namespace core {
 
         class Address {
         private:
-            unsigned char addr[2];
+            DATA addr[2];
         public:
             unsigned short getBigEndian();
             void setBigEndian(unsigned short);
@@ -18,10 +18,10 @@ namespace core {
 
         class CRC {
         private:
-            unsigned char crc8;
+            DATA crc8;
         public:
-            unsigned char getCRC8();
-            void setCRC8(unsigned char);
+            DATA getCRC8();
+            void setCRC8(DATA);
         };
         
         class SiteCode {
@@ -60,14 +60,14 @@ namespace core {
         public:
             virtual ~Message() = 0;
 
-            unsigned char stx;
-            unsigned char cmd;
+            DATA stx;
+            DATA cmd;
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            unsigned char payload[MAX_RAW_BUFF - 2];
-            unsigned char crc8;
-            unsigned char etx;
+            DATA payload[MAX_RAW_BUFF - 2];
+            DATA crc8;
+            DATA etx;
         };
 
         class InitReq : public Message {

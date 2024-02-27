@@ -2,7 +2,7 @@
 #include <iostream>
 #include <string.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <fcntl.h>  // fcntl()
 
 #include "commsock.h"
 
@@ -95,7 +95,7 @@ namespace core {
             }
         }
 
-        bool CommSock::send(const u_char* buf, size_t len, int flags) const {
+        bool CommSock::send(const DATA* buf, size_t len, int flags) const {
             ssize_t status = ::send(m_sock, buf, len, flags);
             if(status == -1) {
                 cout << "[CommSock] : status == -1   errno == " << errno << "  in core::system::CommSock::send" << endl;
@@ -105,7 +105,7 @@ namespace core {
             }
         }
 
-        int CommSock::recv(u_char* buf, size_t len, int flags) const {
+        int CommSock::recv(DATA* buf, size_t len, int flags) const {
             memset(buf, 0, len + 1);
             ssize_t status = ::recv(m_sock, buf, len, flags);
             if(status == -1) {

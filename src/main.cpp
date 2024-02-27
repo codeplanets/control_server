@@ -1,21 +1,17 @@
-#include <iostream>
 #include <unistd.h>
-
-#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>     // signal(), sigaction()
+#include <cstdio>
+#include <cstdlib>
+#include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
-#include <mqueue.h>     // mq_open()
+
+#include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
 
 #include "sem.h"
-
-#include <fcntl.h>      // fcntl()
 
 #include "main.h"
 #include "serversocket.h"
@@ -25,14 +21,14 @@
 
 using namespace std;
 using namespace core;
-using namespace core::server;
 
 const int max_pool = 50;
 const int listen_backlog = 5;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
-void start_child(ServerSocket newSock, int pid);
+using namespace core::server;
+void start_child(server::ServerSocket newSock, int pid);
 void setChldSignal();
 void setIntSignal();
 
@@ -68,12 +64,12 @@ int main(int argc, char *argv[]) {
     vector<Connection*> connected;
 
     try {
-        ServerSocket server(port);
+        server::ServerSocket server(port);
         std::cout << "[TCP server] : [Parent process] : listening......." << endl;
 
         while(true) {
             sleep(1);
-            ServerSocket new_sock;
+            server::ServerSocket new_sock;
             while(server.accept(new_sock)) {
                 
                 if (connected.size() > 0) {
@@ -178,7 +174,7 @@ void sigchld_handler(int signo) {
     }
 }
 
-const char* name_posix_mq = "/my_mq_";
+const char* name_posix_mq = "/mq_";
 
 std::string get_mq_name(const char* name, int pid) {
     string mq_name;
@@ -188,54 +184,63 @@ std::string get_mq_name(const char* name, int pid) {
     return mq_name.c_str();
 }
 
-void start_child(ServerSocket newSock, int pid) {
+void start_child(server::ServerSocket newSock, int pid) {
     cout << "[" << getpid() << "] : " << "Start Child Process" << endl;
 
     // init 정보 수신
-    u_char data[MAX_RAW_BUFF];
+    DATA data[MAX_RAW_BUFF];
     newSock >> data;
     cout << "[" << getpid() << "] : " << data << endl;
 
+    // message queue 설정
     struct mq_attr mq_attrib = {.mq_maxmsg = 10, .mq_msgsize = 1024};
     cout << "[" << getpid() << "] : " << "Create MQ......" << endl;
 
+    // message queue 이름 설정 ("mq_" + pid)
     string mqname = get_mq_name(name_posix_mq, pid);
     cout << "[" << getpid() << "] : " << mqname.c_str() << endl;
 
+    // message queue 생성
     mqd_t mq_fd = ::mq_open(mqname.c_str(), O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, &mq_attrib);
     if (mq_fd > 0) {
-        cout << "[" << getpid() << "] : " << "OK!" << endl;
+        cout << "[" << getpid() << "] : " << "Create Message Queue[" << mqname <<"] OK!" << endl;
     } else {
+        // 이미 message queue가 생성되어 있으면 Open
         if (errno == EEXIST) {
-            cout << "[" << getpid() << "] : " << "Open MQ......" << endl;
+            cout << "[" << getpid() << "] : " << "Exist MQ, Open......" << endl;
             mq_fd = ::mq_open(mqname.c_str(), O_RDWR);
             if (mq_fd == (mqd_t)-1) {
                 cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
                 return;
             }
-            cout << "[" << getpid() << "] : " << "Open MQ" << endl;
+            cout << "[" << getpid() << "] : " << "Open Message Queue[" << mqname <<"] OK!" << endl;
         } else {
             cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
             return;
         }
     }
 
+    // message queue 송수신 확인
     const char* msg = "abcdefg";
     size_t msg_len = sizeof(msg);
 
+    // 송신
     cout << "[" << getpid() << "] : " << "mq_send : " << msg << endl;
     mq_send(mq_fd, msg, msg_len, 0);
 
+    // 수신
     char buf[4096];
     mq_receive(mq_fd, buf, sizeof(buf), 0);
     cout << "[" << getpid() << "] : " << "mq_receive : " << buf << endl;
 
     sleep(1);
 
+    // close message queue
     if (mq_close(mq_fd) < 0) {
         cout << "[" << getpid() << "] : " << "Failed mq_close() : " << strerror(errno) << endl;
     }
 
+    // remove message queue
     if (mq_unlink(mqname.c_str()) < 0) {
         cout << "[" << getpid() << "] : " << "Failed mq_unlink() : " << strerror(errno) << endl;
     }
