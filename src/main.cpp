@@ -19,6 +19,8 @@
 
 #include "connection.h"
 
+#include "mq.h"
+
 using namespace std;
 using namespace core;
 
@@ -27,7 +29,6 @@ const int listen_backlog = 5;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
-using namespace core::server;
 void start_child(server::ServerSocket newSock, int pid);
 void setChldSignal();
 void setIntSignal();
@@ -61,7 +62,7 @@ int main(int argc, char *argv[]) {
     int port = 5900;
     pid_t pid;
 
-    vector<Connection*> connected;
+    vector<server::Connection*> connected;
 
     try {
         server::ServerSocket server(port);
@@ -174,8 +175,6 @@ void sigchld_handler(int signo) {
     }
 }
 
-const char* name_posix_mq = "/mq_";
-
 std::string get_mq_name(const char* name, int pid) {
     string mq_name;
     mq_name.append(name);
@@ -192,58 +191,26 @@ void start_child(server::ServerSocket newSock, int pid) {
     newSock >> data;
     cout << "[" << getpid() << "] : " << data << endl;
 
-    // message queue 설정
-    struct mq_attr mq_attrib = {.mq_maxmsg = 10, .mq_msgsize = 1024};
-    cout << "[" << getpid() << "] : " << "Create MQ......" << endl;
-
-    // message queue 이름 설정 ("mq_" + pid)
-    string mqname = get_mq_name(name_posix_mq, pid);
-    cout << "[" << getpid() << "] : " << mqname.c_str() << endl;
-
-    // message queue 생성
-    mqd_t mq_fd = ::mq_open(mqname.c_str(), O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, &mq_attrib);
-    if (mq_fd > 0) {
-        cout << "[" << getpid() << "] : " << "Create Message Queue[" << mqname <<"] OK!" << endl;
-    } else {
-        // 이미 message queue가 생성되어 있으면 Open
-        if (errno == EEXIST) {
-            cout << "[" << getpid() << "] : " << "Exist MQ, Open......" << endl;
-            mq_fd = ::mq_open(mqname.c_str(), O_RDWR);
-            if (mq_fd == (mqd_t)-1) {
-                cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
-                return;
-            }
-            cout << "[" << getpid() << "] : " << "Open Message Queue[" << mqname <<"] OK!" << endl;
-        } else {
-            cout << "[" << getpid() << "] : " << "Failed mq_open() : " << strerror(errno) << endl;
-            return;
-        }
-    }
+    system::Mq mq;
+    mq.open(getpid());
 
     // message queue 송수신 확인
     const char* msg = "abcdefg";
     size_t msg_len = sizeof(msg);
 
     // 송신
-    cout << "[" << getpid() << "] : " << "mq_send : " << msg << endl;
-    mq_send(mq_fd, msg, msg_len, 0);
+    cout << mq.send(msg, msg_len) << endl;
+    // mq << msg;
+    // mq_send(mq_fd, msg, msg_len, 0);
+
+    sleep(10);
 
     // 수신
-    char buf[4096];
-    mq_receive(mq_fd, buf, sizeof(buf), 0);
-    cout << "[" << getpid() << "] : " << "mq_receive : " << buf << endl;
+    char buf[1024] = {0x00,};
+    cout << mq.recv(buf, sizeof(buf)) << endl;
 
     sleep(1);
 
-    // close message queue
-    if (mq_close(mq_fd) < 0) {
-        cout << "[" << getpid() << "] : " << "Failed mq_close() : " << strerror(errno) << endl;
-    }
-
-    // remove message queue
-    if (mq_unlink(mqname.c_str()) < 0) {
-        cout << "[" << getpid() << "] : " << "Failed mq_unlink() : " << strerror(errno) << endl;
-    }
 }
 
 void setChldSignal() {

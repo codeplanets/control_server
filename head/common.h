@@ -5,7 +5,7 @@
 #include <regex>
 
 typedef int SOCKET;
-typedef u_char DATA;
+typedef char DATA;
 
 #define MAX_TASK_NUM	1
 #define MAX_EXTEND_NUM	1

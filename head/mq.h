@@ -6,14 +6,13 @@
  
 using namespace std;
 
-const char* name_posix_mq = "/mq_";
-
 namespace core {
     namespace system {
         class Mq {
         protected:
-            struct mq_attr mq_attrib;
-            mqd_t mq_fd;
+            string m_mqname;
+            struct mq_attr m_mq_attrib;
+            mqd_t m_mq_fd;
 
         private:
             string get_mq_name(const char* name, int pid);
@@ -22,9 +21,12 @@ namespace core {
             Mq();
             virtual ~Mq();
 
-            bool open();
+            bool open(int pid);
             void close(void);
             
+            bool send(const DATA*, size_t len);
+            bool recv(DATA*, size_t len);
+
             const Mq& operator << (const DATA*) const;
             const Mq& operator >> (DATA*) const;
         };
