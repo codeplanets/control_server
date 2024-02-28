@@ -2,27 +2,7 @@
 #include "common.h"
 #include "errorcode.h"
 
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/utsname.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <unistd.h>
-#include <signal.h>
-#include <string.h>
-#include <dirent.h>
-#include <limits.h>
-#include <netdb.h>
-#include <ifaddrs.h>
-#include <dlfcn.h>
-#include <pthread.h>
 
 namespace core {
     namespace common {

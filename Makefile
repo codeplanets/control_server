@@ -17,7 +17,7 @@ UTESTLIBS = libs/libgtest.a
 MOCKLIBS = libs/libgmock.a
 LIBPATH = /usr/lib
 HEADERPATH = /usr/include
-LIBS = -lmysqlclient -lpthread
+LIBS = -lmysqlclient -lpthread -lrt
 
 TESTSRCS = ${wildcard srctest/*.cpp}
 TESTOBJS = ${TESTSRCS:srctest/%.cpp=build/%.o}

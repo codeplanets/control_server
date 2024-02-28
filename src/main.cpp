@@ -1,20 +1,17 @@
-#include <iostream>
 #include <unistd.h>
-
-#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>     // signal(), sigaction()
+#include <cstdio>
+#include <cstdlib>
+#include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
 
-#include "sem.h"
+#include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
 
-#include <fcntl.h>      // fcntl()
+#include "sem.h"
 
 #include "main.h"
 #include "serversocket.h"
@@ -22,16 +19,17 @@
 
 #include "connection.h"
 
+#include "mq.h"
+
 using namespace std;
 using namespace core;
-using namespace core::server;
 
 const int max_pool = 50;
 const int listen_backlog = 5;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
-void start_child(int sfd, int idx);
+void start_child(server::ServerSocket newSock, int pid);
 void setChldSignal();
 void setIntSignal();
 
@@ -64,15 +62,15 @@ int main(int argc, char *argv[]) {
     int port = 5900;
     pid_t pid;
 
-    vector<Connection*> connected;
+    vector<server::Connection*> connected;
 
     try {
-        ServerSocket server(port);
+        server::ServerSocket server(port);
         std::cout << "[TCP server] : [Parent process] : listening......." << endl;
 
         while(true) {
             sleep(1);
-            ServerSocket new_sock;
+            server::ServerSocket new_sock;
             while(server.accept(new_sock)) {
                 
                 if (connected.size() > 0) {
@@ -87,14 +85,14 @@ int main(int argc, char *argv[]) {
                 pid = fork();
 
                 if (pid == 0) {
-                    cout << "[TCP server] : [Child process]" << getpid() << "<<" << getppid() << endl;
+                    cout << "[TCP server] : [Child process]" << getpid() << " << " << getppid() << endl;
                     server.close();
 
-                    // start_child(listener_rtu, i);
+                    start_child(new_sock, getpid());
                     
                     sleep(10);
 
-                    cout << "[TCP server] : [Child process] : disconnect client...." << endl;
+                    cout << "[" << getpid() << "] : " << "disconnect client...." << endl;
                     
                     // Fork 되면서 child에서 erase 해도 Parent에는 erase 되지 않는다.
                     // parent child 공유되는게 필요
@@ -109,7 +107,7 @@ int main(int argc, char *argv[]) {
                     return 0;
 
                 } else if (pid == -1) {
-                    cout << "[TCP server] : Failed : fork()" << endl;
+                    cout << "[TCP server] : Failed : fork() : " << strerror(errno) << endl;
                     new_sock.close();
                     sleep(1);
                     continue;
@@ -177,28 +175,29 @@ void sigchld_handler(int signo) {
     }
 }
 
-void start_child(int sfd, int idx) {
-    cout << "Start Child Process" << endl;
+void start_child(server::ServerSocket newSock, int pid) {
+    cout << "[" << getpid() << "] : " << "Start Child Process" << endl;
 
-    // int cfd, ret_len;
-    // socklen_t len_saddr;
-    // char buf[40];
-    // struct sockaddr_in saddr_c;
-    /**
-     * [ ] accept
-     * ```
-     * for(;;) {
-     *  cfd = accept(sfd, (struct sockaddr *)&saddr_c, &len_saddr);
-     *  if (cfd == -1) {
-     *      cout << "[Child] : Fail: accept()" << endl;
-     *      continue;
-     *  }
-     *  cout << "[Child"<< idx << "] Accept about socket " << cfd << endl;
-     * }
-     * ```
-     * [ ] recv data
-     * 
-    **/
+    // init 정보 수신
+    DATA data[MAX_RAW_BUFF];
+    newSock >> data;
+    cout << "[" << getpid() << "] : " << data << endl;
+
+    sleep(5);
+
+    system::Mq mq;
+    mq.open(getpid());
+
+    // message queue 송수신 확인
+    const char* msg = "Message Test";
+    size_t msg_len = sizeof(msg);
+
+    // 송신 테스트 코드
+    cout << mq.send(msg, msg_len) << endl;
+
+    // 수신 테스트 코드
+    char buf[1024] = {0x00,};
+    cout << mq.recv(buf, sizeof(buf)) << endl;
 }
 
 void setChldSignal() {

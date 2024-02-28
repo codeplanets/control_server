@@ -1,15 +1,13 @@
 #pragma once
 
-#include <regex>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <string>
 #include <arpa/inet.h>
 
-typedef int	SOCKET;
+#include "common.h"
 
 namespace core {
     namespace system {
@@ -30,8 +28,8 @@ namespace core {
             bool accept(CommSock&) const;
             void close(void);
 
-            bool send(const u_char* buf, size_t len, int flags=0) const;
-            int recv(u_char* buf, size_t len, int flags=0) const;
+            bool send(const DATA* buf, size_t len, int flags=0) const;
+            int recv(DATA* buf, size_t len, int flags=0) const;
 
             void set_non_blocking(const bool);
             bool is_valid(void) const {return m_sock != -1; }

@@ -39,14 +39,14 @@ namespace core {
             CommSock::close();
         }
 
-        const ServerSocket& ServerSocket::operator << (const u_char* s) const {
+        const ServerSocket& ServerSocket::operator << (const DATA* s) const {
             if (!CommSock::send(s, sizeof(s))) {
                 throw SocketException(EC_WRITE_FAILURE, "Could not write to socket.");
             }
             return *this;
         }
 
-        const ServerSocket& ServerSocket::operator >> (u_char* r) const {
+        const ServerSocket& ServerSocket::operator >> (DATA* r) const {
             if (!CommSock::recv(r, sizeof(r))) {
                 throw SocketException(EC_READ_FAILURE, "Could not read from socket.");
             }
