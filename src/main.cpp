@@ -175,14 +175,6 @@ void sigchld_handler(int signo) {
     }
 }
 
-std::string get_mq_name(const char* name, int pid) {
-    string mq_name;
-    mq_name.append(name);
-    mq_name.append(std::to_string(pid));
-    cout << mq_name << endl;
-    return mq_name.c_str();
-}
-
 void start_child(server::ServerSocket newSock, int pid) {
     cout << "[" << getpid() << "] : " << "Start Child Process" << endl;
 
@@ -191,26 +183,21 @@ void start_child(server::ServerSocket newSock, int pid) {
     newSock >> data;
     cout << "[" << getpid() << "] : " << data << endl;
 
+    sleep(5);
+
     system::Mq mq;
     mq.open(getpid());
 
     // message queue 송수신 확인
-    const char* msg = "abcdefg";
+    const char* msg = "Message Test";
     size_t msg_len = sizeof(msg);
 
-    // 송신
+    // 송신 테스트 코드
     cout << mq.send(msg, msg_len) << endl;
-    // mq << msg;
-    // mq_send(mq_fd, msg, msg_len, 0);
 
-    sleep(10);
-
-    // 수신
+    // 수신 테스트 코드
     char buf[1024] = {0x00,};
     cout << mq.recv(buf, sizeof(buf)) << endl;
-
-    sleep(1);
-
 }
 
 void setChldSignal() {

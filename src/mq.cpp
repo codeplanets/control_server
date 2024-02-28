@@ -104,3 +104,44 @@ namespace core {
         }
     }
 }
+
+
+// void chk_rt(int sig, siginfo_t *si, void *data) {
+//     cout << "[SIGRT] si_code, si_band, si_fd, si_value :";
+//     cout << si->si_code << ", ";
+//     cout << si->si_band << ", ";
+//     cout << si->si_fd << ", ";
+//     cout << si->si_value.sival_int << endl;
+// }
+
+// bool init_signal(mqd_t mq_fd) {
+//     // message queue 시그널 핸들러 설치
+//     struct sigevent sigev_noti;
+//     struct sigaction sa_rt;
+//     struct mq_attr mq_at;
+//     sa_rt.sa_sigaction = chk_rt;
+//     sigemptyset(&sa_rt.sa_mask);
+//     sa_rt.sa_flags = SA_SIGINFO|SA_RESTART;
+//     sigaction(SIGRTMIN, &sa_rt, NULL);
+
+//     // 시그널 통지 이벤트 구조체 작성
+//     memset(&sigev_noti, 0, sizeof(struct sigevent));
+//     sigev_noti.sigev_notify = SIGEV_SIGNAL;
+
+//     // notification via signal delivery
+//     sigev_noti.sigev_signo = SIGRTMIN;
+//     sigev_noti.sigev_value.sival_int = 0x64; // 전달될 데이터 (int형)
+
+//     return true;
+
+//     // mq_getattr(mq_fd, &mq_at);
+//     // if (mq_at.mq_curmsgs == 0) {
+//     //     if (mq_notify(mq_fd, &sigev_noti) == -1) {
+//     //         cout << "[" << getpid() << "] : " << "Failed mq_notify() : " << strerror(errno) << endl;
+//     //         return false;
+//     //     }
+//     // }
+//     // cout << "[" << getpid() << "] : " << "Waiting Signal....." << endl;
+//     // char buf[1024] = {0x00,};
+//     // cout << recv(buf, sizeof(buf)) << endl;
+// }
