@@ -22,6 +22,7 @@
 #include "mq.h"
 
 #include "message.h"
+#include "rtu.h"
 
 using namespace std;
 using namespace core;
@@ -205,6 +206,36 @@ void start_child(server::ServerSocket newSock, int pid) {
     DATA data[MAX_RAW_BUFF];
     newSock >> data;
     cout << "[" << getpid() << "] : " << data << endl;
+    // 메시지 타입 구분
+    if (data[0] == STX) {
+        if (data[1] == INIT_REQ) {  // RTU
+            cout << "[" << getpid() << "] : " << "Start RTU Init Request" << endl;
+
+            RTUclient rtu;
+            rtu.init(newSock);
+            if (rtu.isSiteCodeAvailable() == false) {
+                newSock << rtu.reqMessage(INIT_RES);
+                sleep(5);
+                return;
+            }
+
+            newSock << rtu.reqMessage(INIT_RES);
+
+            rtu.createMessageQueue();
+            rtu.updateStatus(true);
+
+            rtu.run();
+
+        } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
+            cout << "[" << getpid() << "] : " << "Client Init Request" << endl;
+            // TODO : CommandClients
+            return;
+        } else {
+            cout << "[" << getpid() << "] : " << "Unknown message type" << endl;
+            return;
+        }
+    }
+    // 초기화
 
     sleep(5);
 
