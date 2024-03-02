@@ -8,12 +8,27 @@ namespace core {
 
         class Address {
         private:
-            DATA addr[2];
+            u_short addr;   // big -> little endian
         public:
-            unsigned short getBigEndian();
-            void setBigEndian(unsigned short);
-            unsigned short getLittleEndian();
-            void setLittleEndian(unsigned short);
+            bool setBigEndian(char* addr, int size) {
+                if (size == 2) {
+                    u_short x = 0;
+                    memcpy(&x, addr, size);
+                    std::cout << "BigEndian: " << x << std::endl;
+
+                    x = x & 0xFF0F; // Section clear
+                    x = ((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8);
+
+                    setLittleEndian(x);
+                    std::cout << "LittleEndian: " << getAddr() << std::endl;
+
+                    return true;
+                }
+                return false;
+            }
+        private:
+            void setLittleEndian(u_short addr) { this->addr = addr; }
+            u_short getAddr() { return addr;}
         };
 
         class CRC {
@@ -26,12 +41,27 @@ namespace core {
         
         class SiteCode {
         private:
-            char siteCode[7];
+            char siteCode[8];
+
         public:
-            char getSiteCode();
-            void setSiteCode(char);
+            char* getSiteCode() {
+                return siteCode;
+            }
+
+            void setSiteCode(const char* code) {
+                strcpy(siteCode, code);
+                siteCode[7] = '\0';
+                std::cout << "setSiteCode: " << getSiteCode() << std::endl;
+            }
         };
 
+        struct RSite {
+            SiteCode siteCode;
+            Address clientAddr;
+            bool status;
+            int pid;
+        };
+        
         class Command {
         private:
             char command[4];

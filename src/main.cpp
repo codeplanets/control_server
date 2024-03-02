@@ -21,6 +21,8 @@
 
 #include "mq.h"
 
+#include "message.h"
+
 using namespace std;
 using namespace core;
 
@@ -40,6 +42,11 @@ namespace core {
     }
 }
 
+
+                                                                                                                                                                                                                                                        
+
+
+
 int main(int argc, char *argv[]) {
 
     // Multiple Running 방지
@@ -55,11 +62,27 @@ int main(int argc, char *argv[]) {
     setIntSignal();
     setChldSignal();
     // Configuration
+    int port = 5900;
+
     // Connect Database
     // Query Data
+    // Set Data
+    core::formatter::RSite rSite = {.status = false, .pid = 0 };
+    {
+        char addr[2] = {0x00,};
+        addr[0] = 0x1F;
+        addr[1] = 0xFF;
+        const char* site = "2003570";
+
+        rSite.siteCode.setSiteCode(site);
+        rSite.clientAddr.setBigEndian(addr, sizeof(addr));
+
+        pause();
+    }
+
+    // Delete Data
     std::cout << " : Complete!" << endl;
 
-    int port = 5900;
     pid_t pid;
 
     vector<server::Connection*> connected;
