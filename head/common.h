@@ -35,5 +35,6 @@ typedef char DATA;
 namespace core {
     namespace common {
         void sleep(unsigned int dwMilliSec);
+        void print_hex(char *buf, int size);
     }
 }

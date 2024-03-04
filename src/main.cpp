@@ -206,52 +206,44 @@ void start_child(server::ServerSocket newSock, int pid) {
     DATA data[MAX_RAW_BUFF];
     newSock >> data;
     cout << "[" << getpid() << "] : " << data << endl;
+    core::common::print_hex(data, strlen(data));
+    
     // 메시지 타입 구분
     if (data[0] == STX) {
         if (data[1] == INIT_REQ) {  // RTU
             cout << "[" << getpid() << "] : " << "Start RTU Init Request" << endl;
+            InitReq msg;
+            memcpy(&msg, data, sizeof(msg));
+            msg.print();
 
             RTUclient rtu;
             rtu.init(newSock);
-            if (rtu.isSiteCodeAvailable() == false) {
-                newSock << rtu.reqMessage(INIT_RES);
-                sleep(5);
-                return;
-            }
-
-            newSock << rtu.reqMessage(INIT_RES);
-
-            rtu.createMessageQueue();
-            rtu.updateStatus(true);
-
             rtu.run();
 
         } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
             cout << "[" << getpid() << "] : " << "Client Init Request" << endl;
             // TODO : CommandClients
-            return;
         } else {
             cout << "[" << getpid() << "] : " << "Unknown message type" << endl;
+            sleep(5);
+
             return;
         }
     }
-    // 초기화
 
-    sleep(5);
+    // system::Mq mq;
+    // mq.open(getpid());
 
-    system::Mq mq;
-    mq.open(getpid());
+    // // message queue 송수신 확인
+    // const char* msg = "Message Test";
+    // size_t msg_len = sizeof(msg);
 
-    // message queue 송수신 확인
-    const char* msg = "Message Test";
-    size_t msg_len = sizeof(msg);
+    // // 송신 테스트 코드
+    // cout << mq.send(msg, msg_len) << endl;
 
-    // 송신 테스트 코드
-    cout << mq.send(msg, msg_len) << endl;
-
-    // 수신 테스트 코드
-    char buf[1024] = {0x00,};
-    cout << mq.recv(buf, sizeof(buf)) << endl;
+    // // 수신 테스트 코드
+    // char buf[1024] = {0x00,};
+    // cout << mq.recv(buf, sizeof(buf)) << endl;
 }
 
 void setChldSignal() {

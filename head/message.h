@@ -70,6 +70,14 @@ namespace core {
             void setCommand(int, char);
         };
 
+        class Action {
+        private:
+            char action;
+        public:
+            char getAction();
+            void setAction(char);
+        };
+
         class Result {
         protected:
             char result;
@@ -88,73 +96,222 @@ namespace core {
 
         class Message {
         public:
-            virtual ~Message() = 0;
-
+            virtual ~Message(){;}
+            virtual void print(){;}
             DATA stx;
             DATA cmd;
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            DATA payload[MAX_RAW_BUFF - 2];
+            SiteCode siteCode;
             DATA crc8;
             DATA etx;
         };
 
         class InitReq : public Message {
         public:
-            virtual ~InitReq() = 0;
+            ~InitReq(){}
+            void print(){}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            DATA crc8;
+            DATA etx;
         };
         class InitRes : public Message {
         public:
-            virtual ~InitRes() = 0;
+            ~InitRes(){}
+            void print(){}
+
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            Address rtuAddr;
+            DATA crc8;
+            DATA etx;
         };
         class HeartBeat : public Message {
         public:
-            virtual ~HeartBeat() = 0;
+            ~HeartBeat(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            DATA crc8;
+            DATA etx;
         };
         class HeartBeatAck : public Message {
         public:
-            virtual ~HeartBeatAck() = 0;
+            ~HeartBeatAck(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            DATA crc8;
+            DATA etx;
         };
         class CommandRtu : public Message {
         public:
-            virtual ~CommandRtu() = 0;
+            ~CommandRtu(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            Command dcCommand;
+            Command acCommand;
+            DATA crc8;
+            DATA etx;
         };
         class CommandRtuAck : public Message {
         public:
-            virtual ~CommandRtuAck() = 0;
+            ~CommandRtuAck(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            Command dcCommand;
+            Command acCommand;
+            CommandResult result;
+            DATA crc8;
+            DATA etx;
         };
         class ClientInitReq : public Message {
         public:
-            virtual ~ClientInitReq() = 0;
+            ~ClientInitReq(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            DATA crc8;
+            DATA etx;
         };
         class ClientInitRes : public Message {
         public:
-            virtual ~ClientInitRes() = 0;
+            ~ClientInitRes(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            Address clientAddr;
+            DATA crc8;
+            DATA etx;
         };
         class CommandClient : public Message {
         public:
-            virtual ~CommandClient() = 0;
+            ~CommandClient(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            Command dcCommand;
+            Command acCommand;
+            DATA crc8;
+            DATA etx;
         };
         class CommandClientAck : public Message {
         public:
-            virtual ~CommandClientAck() = 0;
+            ~CommandClientAck(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            SiteCode siteCode;
+            Command dcCommand;
+            Command acCommand;
+            CommandResult result;
+            DATA crc8;
+            DATA etx;
         };
         class SetupInfo : public Message {
         public:
-            virtual ~SetupInfo() = 0;
+            ~SetupInfo(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            Action action;
+            SiteCode siteCode;
+            DATA crc8;
+            DATA etx;
         };
         class SetupInfoAck : public Message {
         public:
-            virtual ~SetupInfoAck() = 0;
+            ~SetupInfoAck(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            Action action;
+            SiteCode siteCode;
+            ActionResult result;
+            DATA crc8;
+            DATA etx;
         };
         class RtuStatusReq : public Message {
         public:
-            virtual ~RtuStatusReq() = 0;
+            ~RtuStatusReq(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            DATA crc8;
+            DATA etx;
         };
+
+        class Status {
+        public:
+            DATA status;
+        };
+        class RtuStatus {
+        public:
+            SiteCode siteCode;
+            Status status;
+        };
+
         class RtuStatusRes : public Message {
         public:
-            virtual ~RtuStatusRes() = 0;
+            ~RtuStatusRes(){;}
+            void print(){;}
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+            unsigned short count;
+            RtuStatus rtuStatus;
+            DATA crc8;
+            DATA etx;
         };
     }
 
