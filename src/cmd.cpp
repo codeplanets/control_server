@@ -1,29 +1,28 @@
 #include <unistd.h>
 
-#include "rtu.h"
+#include "cmd.h"
 #include "packetizer.h"
 #include "socketexception.h"
 
 namespace core {
-    RTUclient::RTUclient(ServerSocket& sock, int heartbeat_limits)
-    : Client(sock)
-    , m_heartbeat_limits(heartbeat_limits) {
+    CMDclient::CMDclient(ServerSocket& sock)
+    : Client(sock) {
         
     }
 
-    RTUclient::~RTUclient() {
+    CMDclient::~CMDclient() {
         updateStatus(false);
     }
 
     /**
      * @return true if SiteCode is available, false otherwise
     */
-    bool RTUclient::isSiteCodeAvailable() {
+    bool CMDclient::isSiteCodeAvailable() {
         // TODO: check if site code is available
         return true;
     }
 
-    int RTUclient::reqMessage(DATA* buf, DATA cmd) {
+    int CMDclient::reqMessage(DATA* buf, DATA cmd) {
         // INIT_RES, HEART_BEAT_ACK, COMMAND_RTU
         if (cmd == INIT_RES) {
             InitRes msg;
@@ -48,7 +47,7 @@ namespace core {
         return 0;
     }
 
-    void RTUclient::run() {
+    void CMDclient::run() {
         DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
     
         int len = reqMessage(sendbuf, INIT_RES);
@@ -67,16 +66,7 @@ namespace core {
         DATA sock_buf[MAX_RAW_BUFF] = {0x00,};
         // DATA mq_buf[MAX_RAW_BUFF] = {0x00,};
 
-        int heartbeat_cnt = 0;
-
         while (true) {
-            if (heartbeat_cnt > m_heartbeat_limits) {
-                syslog(LOG_WARNING, "Timeout %d seconds", m_heartbeat_limits);
-                break;
-            } else {
-                heartbeat_cnt++;
-            }
-
             common::sleep(1000);
 
             try {
@@ -88,7 +78,6 @@ namespace core {
                 if (sock_buf[0] == STX) {
                     if (sock_buf[1] == HEART_BEAT) {  // RTU
                         syslog(LOG_DEBUG, "Heartbeat.");
-                        heartbeat_cnt = 0;
 
                         sock_buf[1] = HEART_BEAT_ACK;
                         newSock.send(sock_buf, sizeof(HeartBeatAck));

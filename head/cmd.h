@@ -4,14 +4,13 @@
 
 namespace core {
 
-    class RTUclient : public Client {
+    class CMDclient : public Client {
     private:
         SiteCode scode;
-        int m_heartbeat_limits;
         
     public:
-        RTUclient(ServerSocket& sock, int heartbeat_limits = 5);
-        ~RTUclient();
+        CMDclient(ServerSocket& sock);
+        ~CMDclient();
 
         /**
          * @return true if SiteCode is available, false otherwise

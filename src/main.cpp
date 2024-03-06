@@ -209,8 +209,7 @@ void start_child(server::ServerSocket newSock, int pid) {
                 memcpy(&msg, data, len);
                 msg.print();
 
-                RTUclient rtu;
-                rtu.init(newSock);
+                RTUclient rtu(newSock);
                 rtu.run();
 
             } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
