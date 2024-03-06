@@ -1,7 +1,7 @@
 
 #include "serversocket.h"
 #include "commsock.h"
-#include "log.h"
+// #include "log.h"
 #include "errorcode.h"
 #include "socketexception.h"
 
@@ -14,19 +14,19 @@ namespace core {
             if (!CommSock::create()) {
                 throw SocketException(EC_NOT_CREATED, "Could not create server socket.");
             }
-            cout << "[ServerSocket] : create socket()" << endl;
+            syslog(LOG_DEBUG, "create socket()");
 
             CommSock::set_non_blocking(true);
 
             if (!CommSock::bind(port)) {
                 throw SocketException(EC_BIND_FAILURE, "Could not bind to port.");
             }
-            cout << "[ServerSocket] : bind()" << endl;
+            syslog(LOG_DEBUG, "bind()");
 
             if (!CommSock::listen()) {
                 throw SocketException(EC_LISTEN_FAILURE, "Could not listen to socket.");
             }
-            cout << "[ServerSocket] : listen()" << endl;
+            syslog(LOG_DEBUG, "listen()");
         }
         
         ServerSocket::~ServerSocket() { }
@@ -39,18 +39,20 @@ namespace core {
             CommSock::close();
         }
 
-        const ServerSocket& ServerSocket::operator << (const DATA* s) const {
-            if (!CommSock::send(s, sizeof(s))) {
+        int ServerSocket::send(const DATA* s, size_t len) {
+            int val = CommSock::send(s, len);
+            if (val == -1) {
                 throw SocketException(EC_WRITE_FAILURE, "Could not write to socket.");
             }
-            return *this;
+            return val;
         }
 
-        const ServerSocket& ServerSocket::operator >> (DATA* r) const {
-            if (!CommSock::recv(r, sizeof(r))) {
+        int ServerSocket::recv(DATA* r, size_t len) {
+            int val = CommSock::recv(r, len);
+            if (val == -1) {
                 throw SocketException(EC_READ_FAILURE, "Could not read from socket.");
             }
-            return *this;
+            return val;
         }
     }
 }

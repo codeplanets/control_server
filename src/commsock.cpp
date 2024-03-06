@@ -26,19 +26,19 @@ namespace core {
         bool CommSock::create(void) {
             m_sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
             if(!is_valid()) {
-                cout << "[CommSock] : Failed create socket()" << endl;
+                syslog(LOG_ERR, "[%s:%d]  : Failed create socket()", __FILE__, __LINE__);
                 return false;
             }
             // TIME_WAIT - argh
             int reuse_on = 1;
             if(setsockopt(m_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse_on, sizeof(reuse_on)) == -1) {
-                cout << "[CommSock] : Failed setsockopt(REUSEADDR)" << endl;
+                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(REUSEADDR)", __FILE__, __LINE__);
                 return false;
             }
             // Keep alive
             int keepalive_on = 1;
             if(setsockopt(m_sock, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepalive_on, sizeof(keepalive_on)) == -1) {
-                cout << "[CommSock] : Failed setsockopt(KEEPALIVE)" << endl;
+                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(KEEPALIVE)", __FILE__, __LINE__);
                 return false;
             }
 
@@ -57,7 +57,7 @@ namespace core {
 
             int bind_return = ::bind(m_sock, (struct sockaddr *)&m_addr, len_addr);
             if(bind_return == -1) {
-                cout << "[CommSock] : Failed bind()" << endl;
+                syslog(LOG_ERR, "[%s:%d]  : Failed bind()", __FILE__, __LINE__);
                 return false;
             }
 
@@ -71,7 +71,7 @@ namespace core {
 
             int listen_return = ::listen(m_sock, m_listen_backlog);
             if(listen_return == -1) {
-                cout << "[CommSock] : Failed listen()" << endl;
+                syslog(LOG_ERR, "[%s:%d]  : Failed listen()", __FILE__, __LINE__);
                 return false;
             }
 
@@ -98,24 +98,18 @@ namespace core {
         bool CommSock::send(const DATA* buf, size_t len, int flags) const {
             ssize_t status = ::send(m_sock, buf, len, flags);
             if(status == -1) {
-                cout << "[CommSock] : status == -1   errno == " << errno << "  in core::system::CommSock::send" << endl;
-                return false;
-            } else {
-                return true;
+                syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);
             }
+            return status;
         }
 
         int CommSock::recv(DATA* buf, size_t len, int flags) const {
             memset(buf, 0, len + 1);
             ssize_t status = ::recv(m_sock, buf, len, flags);
             if(status == -1) {
-                cout << "[CommSock] : status == -1   errno == " << errno << "  in core::system::CommSock::recv" << endl;
-                return 0;
-            } else if(status == 0) {
-                return 0;
-            } else {
-                return status;
+                syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);
             }
+            return status;
         }
 
         void CommSock::set_non_blocking (const bool b) {

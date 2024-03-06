@@ -5,7 +5,7 @@
 #include <regex>
 
 typedef int SOCKET;
-typedef char DATA;
+typedef u_char DATA;
 
 #define MAX_TASK_NUM	1
 #define MAX_EXTEND_NUM	1
@@ -35,5 +35,9 @@ typedef char DATA;
 namespace core {
     namespace common {
         void sleep(unsigned int dwMilliSec);
+        void print_hex(DATA *buf, int size);
+        u_short convert_be_to_le(DATA* be, int size);
     }
 }
+
+#include <syslog.h>

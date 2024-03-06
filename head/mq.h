@@ -24,11 +24,8 @@ namespace core {
             bool open(int pid);
             void close(void);
             
-            bool send(const DATA*, size_t len);
+            bool send(DATA*, size_t len);
             bool recv(DATA*, size_t len);
-
-            const Mq& operator << (const DATA*) const;
-            const Mq& operator >> (DATA*) const;
         };
     }
 }
