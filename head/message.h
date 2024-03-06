@@ -1,4 +1,5 @@
 #pragma once
+#pragma pack(1)
 
 #include "common.h"
 
@@ -8,27 +9,10 @@ namespace core {
 
         class Address {
         private:
-            u_short addr;   // big -> little endian
+            DATA addr[2];   // big -> little endian
         public:
-            bool setBigEndian(char* addr, int size) {
-                if (size == 2) {
-                    u_short x = 0;
-                    memcpy(&x, addr, size);
-                    std::cout << "BigEndian: " << x << std::endl;
-
-                    x = x & 0xFF0F; // Section clear
-                    x = ((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8);
-
-                    setLittleEndian(x);
-                    std::cout << "LittleEndian: " << getAddr() << std::endl;
-
-                    return true;
-                }
-                return false;
-            }
-        private:
-            void setLittleEndian(u_short addr) { this->addr = addr; }
-            u_short getAddr() { return addr;}
+            bool setAddr(DATA* addr, int size);
+            u_short getAddr();
         };
 
         class CRC {
@@ -41,18 +25,11 @@ namespace core {
         
         class SiteCode {
         private:
-            char siteCode[8];
+            char siteCode[7];
 
         public:
-            char* getSiteCode() {
-                return siteCode;
-            }
-
-            void setSiteCode(const char* code) {
-                strcpy(siteCode, code);
-                siteCode[7] = '\0';
-                std::cout << "setSiteCode: " << getSiteCode() << std::endl;
-            }
+            char* getSiteCode();
+            void setSiteCode(const char* code);
         };
 
         struct RSite {
@@ -66,6 +43,7 @@ namespace core {
         private:
             char command[4];
         public:
+            char* getCommand();
             char getCommand(int);
             void setCommand(int, char);
         };
@@ -94,10 +72,12 @@ namespace core {
 
         };
 
-        class Message {
+        class InitReq {
         public:
-            virtual ~Message(){;}
-            virtual void print(){;}
+            InitReq();
+            ~InitReq();
+            void print();
+
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -108,24 +88,7 @@ namespace core {
             DATA etx;
         };
 
-        class InitReq : public Message {
-        public:
-            ~InitReq(){}
-            void print(){}
-            DATA stx;
-            DATA cmd;
-            Address fromAddr;
-            Address toAddr;
-            unsigned short length;
-            SiteCode siteCode;
-            DATA crc8;
-            DATA etx;
-        };
-        class InitRes : public Message {
-        public:
-            ~InitRes(){}
-            void print(){}
-
+        struct RInitReq {
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -136,10 +99,29 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class HeartBeat : public Message {
+
+        class InitRes {
         public:
-            ~HeartBeat(){;}
-            void print(){;}
+            InitRes();
+            ~InitRes();
+            void print();
+
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length; // Payload + crc + etx
+            SiteCode siteCode;
+            Address rtuAddr;
+            DATA crc8; // stx + cmd + fromAddr + toAddr + length + payload
+            DATA etx;
+        };
+        class HeartBeat {
+        public:
+            HeartBeat();
+            ~HeartBeat();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -148,10 +130,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class HeartBeatAck : public Message {
+        class HeartBeatAck {
         public:
-            ~HeartBeatAck(){;}
-            void print(){;}
+            HeartBeatAck();
+            ~HeartBeatAck();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -160,10 +144,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class CommandRtu : public Message {
+        class CommandRtu {
         public:
-            ~CommandRtu(){;}
-            void print(){;}
+            CommandRtu();
+            ~CommandRtu();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -175,10 +161,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class CommandRtuAck : public Message {
+        class CommandRtuAck {
         public:
-            ~CommandRtuAck(){;}
-            void print(){;}
+            CommandRtuAck();
+            ~CommandRtuAck();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -191,10 +179,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class ClientInitReq : public Message {
+        class ClientInitReq {
         public:
-            ~ClientInitReq(){;}
-            void print(){;}
+            ClientInitReq();
+            ~ClientInitReq();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -203,10 +193,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class ClientInitRes : public Message {
+        class ClientInitRes {
         public:
-            ~ClientInitRes(){;}
-            void print(){;}
+            ClientInitRes();
+            ~ClientInitRes();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -216,10 +208,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class CommandClient : public Message {
+        class CommandClient {
         public:
-            ~CommandClient(){;}
-            void print(){;}
+            CommandClient();
+            ~CommandClient();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -231,10 +225,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class CommandClientAck : public Message {
+        class CommandClientAck {
         public:
-            ~CommandClientAck(){;}
-            void print(){;}
+            CommandClientAck();
+            ~CommandClientAck();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -247,10 +243,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class SetupInfo : public Message {
+        class SetupInfo {
         public:
-            ~SetupInfo(){;}
-            void print(){;}
+            SetupInfo();
+            ~SetupInfo();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -261,10 +259,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class SetupInfoAck : public Message {
+        class SetupInfoAck {
         public:
-            ~SetupInfoAck(){;}
-            void print(){;}
+            SetupInfoAck();
+            ~SetupInfoAck();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -276,10 +276,12 @@ namespace core {
             DATA crc8;
             DATA etx;
         };
-        class RtuStatusReq : public Message {
+        class RtuStatusReq {
         public:
-            ~RtuStatusReq(){;}
-            void print(){;}
+            RtuStatusReq();
+            ~RtuStatusReq();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -299,10 +301,12 @@ namespace core {
             Status status;
         };
 
-        class RtuStatusRes : public Message {
+        class RtuStatusRes {
         public:
-            ~RtuStatusRes(){;}
-            void print(){;}
+            RtuStatusRes();
+            ~RtuStatusRes();
+            void print();
+            
             DATA stx;
             DATA cmd;
             Address fromAddr;
@@ -314,5 +318,4 @@ namespace core {
             DATA etx;
         };
     }
-
 }

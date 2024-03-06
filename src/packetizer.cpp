@@ -15,16 +15,14 @@ namespace core {
         /**
          * Message constructor
         */
-        core::formatter::Message Packetizer::getMessage(char cmd) {
-            if (cmd == INIT_RES) {
-                return core::formatter::InitRes();
-            } else if (cmd == HEART_BEAT_ACK) {
-                return core::formatter::HeartBeatAck();
-            } else if (cmd == COMMAND_RTU) {
-                return core::formatter::CommandRtu();
-            } else {
-                return core::formatter::Message();
-            }
+        core::formatter::InitRes Packetizer::getMessage_initres(char cmd) {
+            return core::formatter::InitRes();
+        }
+        core::formatter::HeartBeatAck Packetizer::getMessage_heartbeatack(char cmd) {
+            return core::formatter::HeartBeatAck();
+        }
+        core::formatter::CommandRtu Packetizer::getMessage_commandrtu(char cmd) {
+            return core::formatter::CommandRtu();
         }
     }
 }

@@ -10,13 +10,14 @@
 #include <csignal>
 
 #include "common.h"
- 
+
 namespace core {
     namespace server {
         class ControlServerApplication {
         protected:
             const int max_pool = 50;
             const int listen_backlog = 5;
+            std::vector<pid_t> connected;
 
             void sigint_handler(int signo);
             void sigchld_handler(int signo);

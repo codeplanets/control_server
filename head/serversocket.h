@@ -15,8 +15,8 @@ namespace core {
             bool accept(ServerSocket&);
             void close(void);
             
-            const ServerSocket& operator << (const DATA*) const;
-            const ServerSocket& operator >> (DATA*) const;
+            int send(const DATA* r, size_t len);
+            int recv(DATA* r, size_t len);
         };
     }
 }

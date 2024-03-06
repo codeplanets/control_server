@@ -9,7 +9,9 @@ namespace core {
             Packetizer();
             virtual ~Packetizer();
 
-            static core::formatter::Message getMessage(char cmd);
+            static core::formatter::InitRes getMessage_initres(char cmd);
+            static core::formatter::HeartBeatAck getMessage_heartbeatack(char cmd);
+            static core::formatter::CommandRtu getMessage_commandrtu(char cmd);
         };
     }
 }

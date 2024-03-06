@@ -2,6 +2,7 @@
 
 #include "rtu.h"
 #include "packetizer.h"
+#include "socketexception.h"
 
 namespace core {
     RTUclient::RTUclient()
@@ -39,11 +40,11 @@ namespace core {
         m_isCreatedMq = isCreated;
 
         // message queue 송수신 확인
-        const char* msg = "Message Queue Test OK!";
-        size_t msg_len = sizeof(msg);
-        cout << mq.send(msg, msg_len) << endl;
-        DATA buf[MAX_RAW_BUFF] = {0x00,};
-        cout << mq.recv(buf, sizeof(buf)) << endl;
+        // const char* msg = "Message Queue Test OK!";
+        // size_t msg_len = sizeof(msg);
+        // cout << mq.send((DATA*)msg, msg_len) << endl;
+        // DATA buf[MAX_RAW_BUFF] = {0x00,};
+        // cout << mq.recv(buf, sizeof(buf)) << endl;
 
         return isCreated;
     }
@@ -52,40 +53,44 @@ namespace core {
     bool RTUclient::insertDatabase(bool status) { return true; }
     bool RTUclient::updateDatabase(bool status) { return true; }
 
-    const DATA* RTUclient::reqMessage(DATA cmd) {
+    int RTUclient::reqMessage(DATA* buf, DATA cmd) {
         // INIT_RES, HEART_BEAT_ACK, COMMAND_RTU
         if (cmd == INIT_RES) {
-            // core::server::Packetizer::getMessage(cmd);
             InitRes msg;
-            msg.stx = STX;
-            msg.cmd = cmd;
-            // msg.fromAddr.setBigEndian("", 2);
-            // msg.toAddr.setBigEndian("", 2);
-            msg.length = 10;
-            // msg.siteCode.setSiteCode("");
-            // msg.rtuAddr.setBigEndian("", 2);
-            msg.crc8;
-            msg.etx = ETX;
-            
-            return NULL;
+            cout << sizeof(msg) << endl;
+            memcpy(buf, (char*)&msg, sizeof(msg));
+            common::print_hex(buf, sizeof(msg));
+            return sizeof(msg);
         } else if (cmd == HEART_BEAT_ACK) {
-            // core::server::Packetizer::getMessage(cmd);
-            return NULL;
+            HeartBeatAck msg;
+            cout << sizeof(msg) << endl;
+            memcpy(buf, (char*)&msg, sizeof(msg));
+            common::print_hex(buf, sizeof(msg));
+            return sizeof(msg);
         } else if (cmd == COMMAND_RTU) {
-            // core::server::Packetizer::getMessage(cmd);
-            return NULL;
+            CommandRtu msg;
+            cout << sizeof(msg) << endl;
+            memcpy(buf, (char*)&msg, sizeof(msg));
+            common::print_hex(buf, sizeof(msg));
+            return sizeof(msg);
         }
-        return NULL;
+
+        return 0;
     }
 
     void RTUclient::run() {
+        DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
+    
+        int len = reqMessage(sendbuf, INIT_RES);
+        cout << sizeof(sendbuf) << endl;
+
+        newSock.send(sendbuf, len);
+
         if (isSiteCodeAvailable() == false) {
-            newSock << reqMessage(INIT_RES);
-            sleep(5);
+            common::sleep(5000);
             return;
         }
 
-        newSock << reqMessage(INIT_RES);
         createMessageQueue();
         updateStatus(true);
 
@@ -96,34 +101,43 @@ namespace core {
 
         while (true) {
             if (heartbeat_cnt > m_heartbeat_limits) {
-                cout << "[" << getpid() << "] : " << "Timeout." << endl;
+                syslog(LOG_WARNING, "Timeout %d seconds", m_heartbeat_limits);
                 break;
             } else {
                 heartbeat_cnt++;
             }
 
-            sleep(1);
+            common::sleep(1000);
 
-            newSock >> sock_buf;
-
-            if (sock_buf[0] == STX) {
-                if (sock_buf[1] == HEART_BEAT) {  // RTU
-                    cout << "[" << getpid() << "] : " << "Heartbeat." << endl;
-                    heartbeat_cnt = 0;
-                    sock_buf[1] = HEART_BEAT_ACK;
-                    newSock << sock_buf;
-                } else if (sock_buf[1] == COMMAND_RTU_ACK) {  // Client
-                    cout << "[" << getpid() << "] : " << "Command RTU Ack." << endl;
-
-                    size_t msg_len = sizeof(sock_buf);
-                    cout << mq.send(sock_buf, msg_len) << endl;
-
-                    // updateDatabase();
-                } else {
-                    cout << "[" << getpid() << "] : " << "Unknown message type from socket." << hex << sock_buf[1] << endl;
+            try {
+                int len = newSock.recv(sock_buf, MAX_RAW_BUFF);
+                if (len <= 0) {
+                    continue;
                 }
-            } else {
-                cout << "[" << getpid() << "] : " << "Error Start of Text from socket." << hex << sock_buf[0] << endl;
+
+                if (sock_buf[0] == STX) {
+                    if (sock_buf[1] == HEART_BEAT) {  // RTU
+                        syslog(LOG_DEBUG, "Heartbeat.");
+                        heartbeat_cnt = 0;
+
+                        sock_buf[1] = HEART_BEAT_ACK;
+                        newSock.send(sock_buf, sizeof(HeartBeatAck));
+
+                    } else if (sock_buf[1] == COMMAND_RTU_ACK) {  // Client
+                        syslog(LOG_DEBUG, "Command RTU Ack.");
+
+                        size_t msg_len = sizeof(sock_buf);
+                        cout << mq.send(sock_buf, msg_len) << endl;
+
+                        // updateDatabase();
+                    } else {
+                        syslog(LOG_WARNING, "Unknown message type from socket.");
+                    }
+                } else {
+                    syslog(LOG_WARNING, "Error Start of Text from socket.");
+                }
+            } catch (SocketException& se) {
+                syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             }
 
             // TODO : Command Client Message Queue

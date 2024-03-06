@@ -4,10 +4,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <cassert>
+
 #include <cstdio>
 #include <cstdlib>
 #include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
+
+#include <algorithm>    // erase_if()
 
 #include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
 
@@ -40,6 +44,12 @@ namespace core {
     namespace server {
         ControlServerApplication::ControlServerApplication() {}
         ControlServerApplication::~ControlServerApplication() {}
+        
+        void ControlServerApplication::sigint_handler(int signo) {}
+        void ControlServerApplication::sigchld_handler(int signo) {}
+        void ControlServerApplication::start_child(int sfd, int idx) {}
+        void ControlServerApplication::setChldSignal() {}
+        void ControlServerApplication::setIntSignal() {}
     }
 }
 
@@ -48,16 +58,20 @@ namespace core {
 
 
 
+vector<pid_t> connected;
+
 int main(int argc, char *argv[]) {
+    setlogmask (LOG_UPTO (LOG_DEBUG));
+    openlog("Control Server", LOG_CONS|LOG_NDELAY|LOG_PERROR, LOG_USER);
 
     // Multiple Running 방지
     if (common::isRunning() == true) {
-        std::cout << "Already running server!" << endl;
+        syslog(LOG_ERR, "Already running server!");
         exit(EXIT_SUCCESS);
     }
 
-    std::cout << "Running server!" << endl;
-    std::cout << "Setting....";
+    syslog(LOG_INFO, "Running server!");
+    syslog(LOG_DEBUG, "Setting....");
 
     // Zombie Process 방지 Signal 등록
     setIntSignal();
@@ -69,86 +83,92 @@ int main(int argc, char *argv[]) {
     // Query Data
     // Set Data
     core::formatter::RSite rSite = {.status = false, .pid = 0 };
-    {
-        char addr[2] = {0x00,};
+    if(0) {
+        //////////////////////////////////////////////////////////////
+        DATA addr[2] = {0x00,};
         addr[0] = 0x1F;
         addr[1] = 0xFF;
-        const char* site = "2003570";
+        const char* site = "1234567";
+        //////////////////////////////////////////////////////////////
+        // message structure 변환 확인
+        InitRes res;
+        cout << sizeof(res) << endl;
+        res.fromAddr.setAddr(addr, sizeof(addr));
+        res.toAddr.setAddr(addr, sizeof(addr));
+        res.siteCode.setSiteCode(site);
+        res.rtuAddr.setAddr(addr, sizeof(addr));
+        DATA sendbuf[sizeof(res)] = {0x00, };
+        memcpy(sendbuf, (char*)&res, sizeof(res));
+        common::print_hex(sendbuf, sizeof(sendbuf));
 
-        rSite.siteCode.setSiteCode(site);
-        rSite.clientAddr.setBigEndian(addr, sizeof(addr));
+        InitRes msg;
+        memcpy(&msg, sendbuf, sizeof(msg));
+        msg.print();
+        //////////////////////////////////////////////////////////////
+        // message queue 송수신 확인
+        Mq mq;
+        bool isCreated = mq.open(getpid());
+        cout << mq.send(sendbuf, sizeof(sendbuf)) << endl;
+        DATA buf[MAX_RAW_BUFF] = {0x00,};
+        cout << mq.recv(buf, sizeof(buf)) << endl;
+        //////////////////////////////////////////////////////////////
 
         pause();
     }
 
     // Delete Data
-    std::cout << " : Complete!" << endl;
+    syslog(LOG_DEBUG, " : Complete!");
 
     pid_t pid;
 
-    vector<server::Connection*> connected;
-
     try {
         server::ServerSocket server(port);
-        std::cout << "[TCP server] : [Parent process] : listening......." << endl;
+        syslog(LOG_DEBUG, "[Parent process] : listening.......");
 
         while(true) {
-            sleep(1);
+            common::sleep(1000);
             server::ServerSocket new_sock;
             while(server.accept(new_sock)) {
                 
-                if (connected.size() > 0) {
-                    cout << "===============================" << endl;
-                    cout << connected.size() << endl;
-                    for (int i = 0; i < connected.size(); i++) {
-                        cout << connected.at(i)->get_pid() << endl;
-                    }
-                    cout << "===============================" << endl;
-                }
-
                 pid = fork();
 
                 if (pid == 0) {
-                    cout << "[TCP server] : [Child process]" << getpid() << " << " << getppid() << endl;
+                    syslog(LOG_DEBUG, "[Child process] %d << %d", getpid(), getppid());
                     server.close();
 
                     start_child(new_sock, getpid());
                     
-                    sleep(10);
+                    common::sleep(500);
 
-                    cout << "[" << getpid() << "] : " << "disconnect client...." << endl;
+                    syslog(LOG_DEBUG, "[%d] : disconnect client....", getpid());
                     
-                    // Fork 되면서 child에서 erase 해도 Parent에는 erase 되지 않는다.
-                    // parent child 공유되는게 필요
-                    // for (auto iter = connected.begin(); iter != connected.end(); iter++) {
-                    //     if ((*iter)->get_pid() == getpid()) {
-                    //         (*iter)->get_sock()->close();
-                    //         connected.erase(iter);
-                    //     }
-                    // }
-
                     new_sock.close();
                     return 0;
 
                 } else if (pid == -1) {
-                    cout << "[TCP server] : Failed : fork() : " << strerror(errno) << endl;
+                    syslog(LOG_ERR, "[Error : %s:%d] Failed : fork() : %s",__FILE__, __LINE__, strerror(errno));
                     new_sock.close();
-                    sleep(1);
+                    common::sleep(500);
                     continue;
                 } else {
-                    cout << "[TCP server] : [Parent process] : child pid = " << pid << endl;
+                    syslog(LOG_DEBUG, "[Parent process] : child pid = %d", pid);
 
-                    // Connection *pcon = new Connection(pid, &new_sock);
-                    // connected.push_back(pcon);
+                    connected.push_back(pid);
 
+                    if (connected.size() > 0) {
+                        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
+                        for (int i = 0; i < connected.size(); i++) {
+                            syslog(LOG_DEBUG, " -pid : %d", connected.at(i));
+                        }
+                    }
                     new_sock.close();
-                    sleep(1);
+                    common::sleep(500);
                 }
             }
         }
     } catch (SocketException& se) {
-            std::cout << "Exception was caught : [" << se.code() << "]" << se.description() << endl;
-
+            // std::cout << "Exception was caught : [" << se.code() << "]" << se.description() << endl;
+            syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             common::close_sem();
             exit(EXIT_SUCCESS);
     }
@@ -169,81 +189,42 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void sigint_handler(int signo) {
-    int status;
-    pid_t spid;
-
-    spid = wait(&status);
-    cout << endl;
-    cout << "Interactive attention signal. (Ctrl+C)" << endl;
-    cout << "================================" << endl;
-    cout << "PID         : " << spid << endl;
-    cout << "Exit Value  : " << WEXITSTATUS(status) << endl;
-    cout << "Exit Stat   : " << WIFEXITED(status) << endl;
-
-    common::close_sem();
-    exit(EXIT_SUCCESS);
-}
-
-void sigchld_handler(int signo) {
-    int status;
-    pid_t spid;
-
-    while ((spid = waitpid(-1, &status, WNOHANG)) > 0) {
-        cout << endl;
-        cout << "자식프로세스 wait한 결과" << endl;
-        cout << "================================" << endl;
-        cout << "PID         : " << spid << endl;
-        cout << "Exit Value  : " << WEXITSTATUS(status) << endl;
-        cout << "Exit Stat   : " << WIFEXITED(status) << endl;
-    }
-}
-
 void start_child(server::ServerSocket newSock, int pid) {
-    cout << "[" << getpid() << "] : " << "Start Child Process" << endl;
+    syslog(LOG_DEBUG, "Start Child Process");
 
     // init 정보 수신
-    DATA data[MAX_RAW_BUFF];
-    newSock >> data;
-    cout << "[" << getpid() << "] : " << data << endl;
-    core::common::print_hex(data, strlen(data));
-    
-    // 메시지 타입 구분
-    if (data[0] == STX) {
-        if (data[1] == INIT_REQ) {  // RTU
-            cout << "[" << getpid() << "] : " << "Start RTU Init Request" << endl;
-            InitReq msg;
-            memcpy(&msg, data, sizeof(msg));
-            msg.print();
+    DATA data[MAX_RAW_BUFF] = { 0 };
 
-            RTUclient rtu;
-            rtu.init(newSock);
-            rtu.run();
+    int len = newSock.recv(data, MAX_RAW_BUFF);
 
-        } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
-            cout << "[" << getpid() << "] : " << "Client Init Request" << endl;
-            // TODO : CommandClients
-        } else {
-            cout << "[" << getpid() << "] : " << "Unknown message type" << endl;
-            sleep(5);
+    if (len > 0) {
+        cout << "[" << getpid() << "] : " << endl;
+        core::common::print_hex(data, len);
+        
+        // 메시지 타입 구분
+        if (data[0] == STX) {
+            if (data[1] == INIT_REQ) {  // RTU
+                syslog(LOG_DEBUG, "Start RTU Init Request");
+                InitReq msg;
+                memcpy(&msg, data, len);
+                msg.print();
 
-            return;
+                RTUclient rtu;
+                rtu.init(newSock);
+                rtu.run();
+
+            } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
+                syslog(LOG_DEBUG, "Client Init Request");
+                // TODO : CommandClients
+            } else {
+                syslog(LOG_ERR, "Unknown message type");
+                common::sleep(500);
+
+                return;
+            }
         }
     }
-
-    // system::Mq mq;
-    // mq.open(getpid());
-
-    // // message queue 송수신 확인
-    // const char* msg = "Message Test";
-    // size_t msg_len = sizeof(msg);
-
-    // // 송신 테스트 코드
-    // cout << mq.send(msg, msg_len) << endl;
-
-    // // 수신 테스트 코드
-    // char buf[1024] = {0x00,};
-    // cout << mq.recv(buf, sizeof(buf)) << endl;
+    
 }
 
 void setChldSignal() {
@@ -254,10 +235,42 @@ void setChldSignal() {
     sigaction(SIGCHLD, &act, 0);
 }
 
+void sigchld_handler(int signo) {
+    int status;
+    pid_t spid;
+
+    while ((spid = waitpid(-1, &status, WNOHANG)) > 0) {
+        syslog(LOG_DEBUG, "자식프로세스 wait한 결과");
+        syslog(LOG_DEBUG, "PID         : %d", spid);
+        syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
+        syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
+        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
+        std::erase_if(connected, [&spid](const auto& ele) {
+            return ele == spid;
+            }
+        );
+        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
+    }
+}
+
 void setIntSignal() {
     struct sigaction act;
     act.sa_handler = sigint_handler;
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     sigaction(SIGINT, &act, 0);
+}
+
+void sigint_handler(int signo) {
+    int status;
+    pid_t spid;
+
+    spid = wait(&status);
+    syslog(LOG_DEBUG, "Interactive attention signal. (Ctrl+C)");
+    syslog(LOG_DEBUG, "PID         : %d", spid);
+    syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
+    syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
+    common::close_sem();
+    closelog();
+    exit(EXIT_SUCCESS);
 }

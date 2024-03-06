@@ -43,7 +43,7 @@ namespace core {
         /**
          * Converting Message Type to DATA type
         */
-        const DATA* reqMessage(DATA cmd);
+        int reqMessage(DATA* buf, DATA cmd);
 
         void run();
     };
