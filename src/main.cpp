@@ -27,6 +27,9 @@
 
 #include "message.h"
 #include "rtu.h"
+#include "cmd.h"
+
+#include "db.h"
 
 using namespace std;
 using namespace core;
@@ -40,27 +43,16 @@ void start_child(server::ServerSocket newSock, int pid);
 void setChldSignal();
 void setIntSignal();
 
-namespace core {
-    namespace server {
-        ControlServerApplication::ControlServerApplication() {}
-        ControlServerApplication::~ControlServerApplication() {}
-        
-        void ControlServerApplication::sigint_handler(int signo) {}
-        void ControlServerApplication::sigchld_handler(int signo) {}
-        void ControlServerApplication::start_child(int sfd, int idx) {}
-        void ControlServerApplication::setChldSignal() {}
-        void ControlServerApplication::setIntSignal() {}
+std::vector<pid_t> connected;
+std::map<std::string, std::string> sitesMap;
+void print_map(std::map<std::string, std::string>& m) {
+    for (std::map<std::string, std::string>::iterator itr = m.begin(); itr != m.end(); ++itr) {
+        std::cout << itr->first << " " << itr->second << std::endl;
     }
 }
 
-
-                                                                                                                                                                                                                                                        
-
-
-
-vector<pid_t> connected;
-
 int main(int argc, char *argv[]) {
+    // Log 설정
     setlogmask (LOG_UPTO (LOG_DEBUG));
     openlog("Control Server", LOG_CONS|LOG_NDELAY|LOG_PERROR, LOG_USER);
 
@@ -80,7 +72,34 @@ int main(int argc, char *argv[]) {
     int port = 5900;
 
     // Connect Database
+    Database db;
+    ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+    if (ecode!= EC_SUCCESS) {
+        syslog(LOG_ERR, "DB Connection Error!");
+        exit(EXIT_FAILURE);
+    }
+
     // Query Data
+    MYSQL_ROW sqlrow;
+    MYSQL_RES* pRes;
+    ecode = db.db_query("select * from RSite", &pRes);
+    if (ecode!= EC_SUCCESS) {
+        syslog(LOG_ERR, "DB Query Error!");
+        exit(EXIT_FAILURE);
+    }
+
+    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
+    syslog(LOG_DEBUG, "| SiteCode | SiteName | SiteID | Basin |");
+    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
+    while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+        syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
+        sitesMap[sqlrow[0]] = sqlrow[2];
+    }
+    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
+    print_map(sitesMap);
+
+    cout << sitesMap.find("2000004")->second << endl;   // 14
+    
     // Set Data
     core::formatter::RSite rSite = {.status = false, .pid = 0 };
     if(0) {
@@ -272,4 +291,17 @@ void sigint_handler(int signo) {
     common::close_sem();
     closelog();
     exit(EXIT_SUCCESS);
+}
+
+namespace core {
+    namespace server {
+        ControlServerApplication::ControlServerApplication() {}
+        ControlServerApplication::~ControlServerApplication() {}
+        
+        void ControlServerApplication::sigint_handler(int signo) {}
+        void ControlServerApplication::sigchld_handler(int signo) {}
+        void ControlServerApplication::start_child(int sfd, int idx) {}
+        void ControlServerApplication::setChldSignal() {}
+        void ControlServerApplication::setIntSignal() {}
+    }
 }
