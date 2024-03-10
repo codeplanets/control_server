@@ -15,13 +15,14 @@ namespace core {
             mqd_t m_mq_fd;
 
         private:
-            string get_mq_name(const char* name, int pid);
+            string make_mq_name(const string name, int pid);
+            string get_mq_name();
 
         public:
             Mq();
             virtual ~Mq();
 
-            bool open(int pid);
+            bool open(const string name, int pid);
             void close(void);
             
             bool send(DATA*, size_t len);

@@ -12,6 +12,8 @@ namespace core {
             DATA addr[2];   // big -> little endian
         public:
             bool setAddr(DATA* addr, int size);
+            void setAddr(u_short addr, char section = DEFAULT_ADDRESS);
+            void setAddr(std::string addr, char section = DEFAULT_ADDRESS);
             u_short getAddr();
         };
 
@@ -84,7 +86,7 @@ namespace core {
             Address toAddr;
             unsigned short length;
             SiteCode siteCode;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
 
@@ -96,7 +98,7 @@ namespace core {
             unsigned short length;
             SiteCode siteCode;
             Address rtuAddr;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
 
@@ -113,7 +115,7 @@ namespace core {
             unsigned short length; // Payload + crc + etx
             SiteCode siteCode;
             Address rtuAddr;
-            DATA crc8; // stx + cmd + fromAddr + toAddr + length + payload
+            CRC crc8; // stx + cmd + fromAddr + toAddr + length + payload
             DATA etx;
         };
         class HeartBeat {
@@ -127,7 +129,7 @@ namespace core {
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class HeartBeatAck {
@@ -141,7 +143,7 @@ namespace core {
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class CommandRtu {
@@ -158,7 +160,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class CommandRtuAck {
@@ -176,7 +178,7 @@ namespace core {
             Command dcCommand;
             Command acCommand;
             CommandResult result;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class ClientInitReq {
@@ -190,7 +192,7 @@ namespace core {
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class ClientInitRes {
@@ -205,7 +207,7 @@ namespace core {
             Address toAddr;
             unsigned short length;
             Address clientAddr;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class CommandClient {
@@ -222,7 +224,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class CommandClientAck {
@@ -240,7 +242,7 @@ namespace core {
             Command dcCommand;
             Command acCommand;
             CommandResult result;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class SetupInfo {
@@ -256,7 +258,7 @@ namespace core {
             unsigned short length;
             Action action;
             SiteCode siteCode;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class SetupInfoAck {
@@ -273,7 +275,7 @@ namespace core {
             Action action;
             SiteCode siteCode;
             ActionResult result;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
         class RtuStatusReq {
@@ -287,7 +289,7 @@ namespace core {
             Address fromAddr;
             Address toAddr;
             unsigned short length;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
 
@@ -314,7 +316,7 @@ namespace core {
             unsigned short length;
             unsigned short count;
             RtuStatus rtuStatus;
-            DATA crc8;
+            CRC crc8;
             DATA etx;
         };
     }

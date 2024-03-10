@@ -14,6 +14,7 @@
 #include <algorithm>    // erase_if()
 
 #include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
+#include <iostream>
 
 #include "sem.h"
 
@@ -34,6 +35,7 @@
 using namespace std;
 using namespace core;
 
+const bool test = false;
 const int max_pool = 50;
 const int listen_backlog = 5;
 
@@ -51,27 +53,7 @@ void print_map(std::map<std::string, std::string>& m) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    // Log 설정
-    setlogmask (LOG_UPTO (LOG_DEBUG));
-    openlog("Control Server", LOG_CONS|LOG_NDELAY|LOG_PERROR, LOG_USER);
-
-    // Multiple Running 방지
-    if (common::isRunning() == true) {
-        syslog(LOG_ERR, "Already running server!");
-        exit(EXIT_SUCCESS);
-    }
-
-    syslog(LOG_INFO, "Running server!");
-    syslog(LOG_DEBUG, "Setting....");
-
-    // Zombie Process 방지 Signal 등록
-    setIntSignal();
-    setChldSignal();
-    // Configuration
-    int port = 5900;
-
-    // Connect Database
+void setSiteMap(std::map<std::string, std::string> &sc_map) {
     Database db;
     ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
     if (ecode!= EC_SUCCESS) {
@@ -93,40 +75,91 @@ int main(int argc, char *argv[]) {
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
         syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
-        sitesMap[sqlrow[0]] = sqlrow[2];
+        sc_map[sqlrow[0]] = sqlrow[2];
     }
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    print_map(sitesMap);
+    // print_map(sc_map);
 
-    cout << sitesMap.find("2000004")->second << endl;   // 14
+    cout << sc_map.find("2000004")->second << endl;   // 14
+}
+
+int main(int argc, char *argv[]) {
+    // Log 설정
+    setlogmask (LOG_UPTO (LOG_DEBUG));
+    openlog("Control Server", LOG_CONS|LOG_NDELAY|LOG_PERROR, LOG_USER);
+
+    syslog(LOG_INFO, "Running server!");
+    syslog(LOG_DEBUG, "Setting....");
+
+    // Zombie Process 방지 Signal 등록
+    setIntSignal();
+    setChldSignal();
+    
+    // Configuration
+    int port = 5900;
+
+    // Connect Database
+    setSiteMap(sitesMap);
+    print_map(sitesMap);
     
     // Set Data
-    core::formatter::RSite rSite = {.status = false, .pid = 0 };
-    if(0) {
+    // core::formatter::RSite rSite = {.status = false, .pid = 0 };
+    
+    if(test) {
         //////////////////////////////////////////////////////////////
         DATA addr[2] = {0x00,};
         addr[0] = 0x1F;
         addr[1] = 0xFF;
-        const char* site = "1234567";
+        const char* site = "1000007";
         //////////////////////////////////////////////////////////////
         // message structure 변환 확인
+        InitReq req;
         InitRes res;
         cout << sizeof(res) << endl;
         res.fromAddr.setAddr(addr, sizeof(addr));
         res.toAddr.setAddr(addr, sizeof(addr));
         res.siteCode.setSiteCode(site);
         res.rtuAddr.setAddr(addr, sizeof(addr));
+        res.crc8.setCRC8(0x00);
         DATA sendbuf[sizeof(res)] = {0x00, };
+        memcpy(sendbuf, (char*)&res, sizeof(res));
+        res.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
         memcpy(sendbuf, (char*)&res, sizeof(res));
         common::print_hex(sendbuf, sizeof(sendbuf));
 
+        char* siteCode = res.siteCode.getSiteCode();
+        cout << siteCode << endl;
+        string strAddr = sitesMap.find(siteCode)->second;// 7
+        delete siteCode;
+
+        DATA ch[2];
+        // u_short num으로 형변환 
+        unsigned short num = stoi(strAddr);
+        // 0x0001 으로 변환됨
+        printf("hex : 0x%04x, %u \n", num, num);
+
+        // u_short 을 char[] 변환, endian 변환
+        ch[0]=(char)(num >> 8) | RTU_ADDRESS; // | 0x10 주의
+        ch[1]=(char)(num & 0x00ff);
+        
+        printf("0x%02x, 0x%02x \n", ch[0], ch[1]);
+        res.rtuAddr.setAddr(ch, sizeof(ch));
+        printf("0x%04x, %u \n", res.rtuAddr.getAddr(), res.rtuAddr.getAddr());
+        memcpy(sendbuf, (char*)&res, sizeof(res));
+
+        res.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
+        memcpy(sendbuf, (char*)&res, sizeof(res));
+        common::print_hex(sendbuf, sizeof(sendbuf));
+
+        //////////////////////////////////////////////////////////////
         InitRes msg;
-        memcpy(&msg, sendbuf, sizeof(msg));
+        memcpy((void*)&msg, sendbuf, sizeof(msg));
+        msg.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
         msg.print();
         //////////////////////////////////////////////////////////////
         // message queue 송수신 확인
         Mq mq;
-        bool isCreated = mq.open(getpid());
+        mq.open(rtu_mq_name, getpid());
         cout << mq.send(sendbuf, sizeof(sendbuf)) << endl;
         DATA buf[MAX_RAW_BUFF] = {0x00,};
         cout << mq.recv(buf, sizeof(buf)) << endl;
@@ -138,8 +171,13 @@ int main(int argc, char *argv[]) {
     // Delete Data
     syslog(LOG_DEBUG, " : Complete!");
 
-    pid_t pid;
+    // Multiple Running 방지
+    if (common::isRunning() == true) {
+        syslog(LOG_ERR, "Already running server!");
+        exit(EXIT_SUCCESS);
+    }
 
+    pid_t pid;
     try {
         server::ServerSocket server(port);
         syslog(LOG_DEBUG, "[Parent process] : listening.......");
@@ -176,7 +214,7 @@ int main(int argc, char *argv[]) {
 
                     if (connected.size() > 0) {
                         syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
-                        for (int i = 0; i < connected.size(); i++) {
+                        for (size_t i = 0; i < connected.size(); i++) {
                             syslog(LOG_DEBUG, " -pid : %d", connected.at(i));
                         }
                     }
@@ -225,10 +263,11 @@ void start_child(server::ServerSocket newSock, int pid) {
             if (data[1] == INIT_REQ) {  // RTU
                 syslog(LOG_DEBUG, "Start RTU Init Request");
                 InitReq msg;
-                memcpy(&msg, data, len);
+                memcpy((void*)&msg, data, len);
                 msg.print();
 
                 RTUclient rtu(newSock);
+                rtu.init(msg);
                 rtu.run();
 
             } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
@@ -288,8 +327,15 @@ void sigint_handler(int signo) {
     syslog(LOG_DEBUG, "PID         : %d", spid);
     syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
     syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
+
+    string file = "/dev/mqueue/rtu.";
+    file.append(std::to_string(getpid()));
+    unlink(file.c_str());
+    
     common::close_sem();
+    cout << "0" << endl;
     closelog();
+    cout << "1" << endl;
     exit(EXIT_SUCCESS);
 }
 

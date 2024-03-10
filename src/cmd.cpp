@@ -11,9 +11,16 @@ namespace core {
     }
 
     CMDclient::~CMDclient() {
+        mq.close();
         updateStatus(false);
     }
 
+    bool CMDclient::createMessageQueue() {
+        bool isCreated = mq.open(client_mq_name, getpid());
+        m_isCreatedMq = isCreated;
+        return isCreated;
+    }
+    
     /**
      * @return true if SiteCode is available, false otherwise
     */

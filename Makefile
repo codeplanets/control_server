@@ -3,7 +3,7 @@
 CC = g++
 AR = ar
 EXP = export
-CFLAGS = -c -g
+CFLAGS = -c -g -Wall
 
 SRCS = ${wildcard src/*.cpp}
 OBJS = ${SRCS:src/%.cpp=build/%.o}

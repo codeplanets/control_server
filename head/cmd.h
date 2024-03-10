@@ -15,6 +15,11 @@ namespace core {
         /**
          * @return true if SiteCode is available, false otherwise
         */
+        virtual bool createMessageQueue();
+
+        /**
+         * @return true if SiteCode is available, false otherwise
+        */
         bool isSiteCodeAvailable();
 
         /**

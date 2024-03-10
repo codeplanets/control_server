@@ -12,6 +12,7 @@ namespace core {
     }
     
     Client::~Client() {
+        mq.close();
         updateStatus(false);
     }
 
@@ -20,7 +21,7 @@ namespace core {
     }
 
     bool Client::createMessageQueue() {
-        bool isCreated = mq.open(getpid());
+        bool isCreated = mq.open(server_mq_name, getpid());
         m_isCreatedMq = isCreated;
         return isCreated;
     }

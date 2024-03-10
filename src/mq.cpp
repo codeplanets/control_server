@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "mq.h"
 
-const char* name_posix_mq = "/mq_";
+const string name_posix_mq = "/server.";
 
 namespace core {
     namespace system {
@@ -15,10 +15,10 @@ namespace core {
             close();
         }
 
-        bool Mq::open(int pid) {
+        bool Mq::open(const string name, int pid) {
 
             // message queue 이름 설정 ("mq_" + pid)
-            m_mqname = get_mq_name(name_posix_mq, pid);
+            m_mqname = make_mq_name(name, pid);
             syslog(LOG_INFO, "Message Queue name : %s", m_mqname.c_str());
 
             // message queue 생성
@@ -59,15 +59,19 @@ namespace core {
             }
         }
         
-        std::string Mq::get_mq_name(const char* name, int pid) {
+        std::string Mq::make_mq_name(const string name, int pid) {
             string mq_name;
             mq_name.append(name);
             mq_name.append(std::to_string(pid));
             return mq_name.c_str();
         }
 
+        std::string Mq::get_mq_name() {
+            return this->m_mqname;
+        }
+
         bool Mq::send(DATA* s, size_t len) {
-            syslog(LOG_DEBUG, "mq_send : %d Bytes", len);
+            syslog(LOG_DEBUG, "mq_send : %ld Bytes", len);
             common::print_hex(s, len);
 
             if (mq_send(m_mq_fd, (char*)s, len, 0) < 0) {
