@@ -3,6 +3,7 @@
 #include "message.h"
 #include "serversocket.h"
 #include "mq.h"
+#include "db.h"
 
 using namespace core::formatter;
 using namespace core::server;
@@ -13,30 +14,31 @@ namespace core {
     class Client {
     protected:
         ServerSocket newSock;
-        Address rtuaddr;
-        Address clientaddr;
+        Address rtuAddr;
+        Address serverAddr;
+        Address cmdAddr;
+        SiteCode scode;
         Mq mq;
         bool m_isCreatedMq;
     
     public:
         Client(ServerSocket& sock);
         ~Client();
-        void init(ServerSocket& sock);
 
         /**
          * @return true if SiteCode is available, false otherwise
         */
-        virtual bool createMessageQueue();
-
-        virtual bool updateStatus(bool status);
-        virtual bool insertDatabase(bool status);
-        virtual bool updateDatabase(bool status);
+        bool createMessageQueue(std::string mq_name);
 
         /**
          * Converting Message Type to DATA type
         */
         virtual int reqMessage(DATA* buf, DATA cmd) = 0;
         virtual void run() = 0;
+
+        virtual bool updateStatus(bool status);
+        virtual bool insertDatabase(bool status);
+        virtual bool updateDatabase(bool status);
     };
 }
 

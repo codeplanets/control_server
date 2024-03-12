@@ -40,19 +40,21 @@ namespace core {
         }
 
         int ServerSocket::send(const DATA* s, size_t len) {
-            int val = CommSock::send(s, len);
-            if (val == -1) {
-                throw SocketException(EC_WRITE_FAILURE, "Could not write to socket.");
-            }
-            return val;
+            return CommSock::send(s, len);
+            // int val = CommSock::send(s, len);
+            // if (val == -1) {
+            //     throw SocketException(EC_WRITE_FAILURE, "Could not write to socket.");
+            // }
+            // return val;
         }
 
         int ServerSocket::recv(DATA* r, size_t len) {
-            int val = CommSock::recv(r, len);
-            if (val == -1) {
-                throw SocketException(EC_READ_FAILURE, "Could not read from socket.");
-            }
-            return val;
+            return CommSock::recv(r, len);
+            // int val = CommSock::recv(r, len);
+            // if (val == -1) {
+            //     throw SocketException(EC_READ_FAILURE, "Could not read from socket.");
+            // }
+            // return val;
         }
     }
 }

@@ -43,7 +43,7 @@ namespace core {
             return siteCode;
         }
         void SiteCode::setSiteCode(const char* code) {
-            strcpy(siteCode, code);
+            strncpy(siteCode, code, 7);
             std::cout << "setSiteCode: " << getSiteCode() << std::endl;
         }
         //////////////////////////////////////////////
@@ -80,7 +80,7 @@ namespace core {
         // bool Message::calcCrc() {}
         //////////////////////////////////////////////
         // Class InitReq
-        InitReq::InitReq() : stx(STX), cmd(INIT_REQ), length(9), etx(ETX) {}
+        InitReq::InitReq() : stx(STX), cmd(INIT_REQ), length(7), etx(ETX) {}
         InitReq::~InitReq() {}
         void InitReq::print() {
             std::cout << "InitReq: " << std::endl;
@@ -95,7 +95,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class InitRes
-        InitRes::InitRes() : stx(STX), cmd(INIT_RES), length(11), etx(ETX) {}
+        InitRes::InitRes() : stx(STX), cmd(INIT_RES), length(9), etx(ETX) {}
         InitRes::~InitRes() {}
         void InitRes::print() {
             std::cout << "InitReq: " << std::endl;
@@ -111,7 +111,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class HeartBeat
-        HeartBeat::HeartBeat() : stx(STX), cmd(HEART_BEAT), length(2), etx(ETX) {}
+        HeartBeat::HeartBeat() : stx(STX), cmd(HEART_BEAT), length(0), etx(ETX) {}
         HeartBeat::~HeartBeat() {}
         void HeartBeat::print() {
             std::cout << "HeartBeat: " << std::endl;
@@ -125,7 +125,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class HeartBeatAck
-        HeartBeatAck::HeartBeatAck() : stx(STX), cmd(HEART_BEAT_ACK), length(2), etx(ETX) {}
+        HeartBeatAck::HeartBeatAck() : stx(STX), cmd(HEART_BEAT_ACK), length(0), etx(ETX) {}
         HeartBeatAck::~HeartBeatAck() {}
         void HeartBeatAck::print() {
             std::cout << "HeartBeatAck: " << std::endl;
@@ -139,7 +139,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class CommandRtu
-        CommandRtu::CommandRtu() : stx(STX), cmd(COMMAND_RTU), length(17), etx(ETX) {}
+        CommandRtu::CommandRtu() : stx(STX), cmd(COMMAND_RTU), length(15), etx(ETX) {}
         CommandRtu::~CommandRtu() {}
         void CommandRtu::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -156,7 +156,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class CommandRtuAck
-        CommandRtuAck::CommandRtuAck() : stx(STX), cmd(COMMAND_RTU_ACK), length(18), etx(ETX) {}
+        CommandRtuAck::CommandRtuAck() : stx(STX), cmd(COMMAND_RTU_ACK), length(16), etx(ETX) {}
         CommandRtuAck::~CommandRtuAck() {}
         void CommandRtuAck::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -174,7 +174,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class ClientInitReq
-        ClientInitReq::ClientInitReq() : stx(STX), cmd(CLIENT_INIT_REQ), length(2), etx(ETX) {}
+        ClientInitReq::ClientInitReq() : stx(STX), cmd(CLIENT_INIT_REQ), length(0), etx(ETX) {}
         ClientInitReq::~ClientInitReq() {}
         void ClientInitReq::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -188,7 +188,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class ClientInitRes        
-        ClientInitRes::ClientInitRes() : stx(STX), cmd(CLIENT_INIT_RES), length(4), etx(ETX) {}
+        ClientInitRes::ClientInitRes() : stx(STX), cmd(CLIENT_INIT_RES), length(2), etx(ETX) {}
         ClientInitRes::~ClientInitRes() {}
         void ClientInitRes::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -203,7 +203,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class CommandClient        
-        CommandClient::CommandClient() : stx(STX), cmd(COMMAND_CLIENT), length(17), etx(ETX) {}
+        CommandClient::CommandClient() : stx(STX), cmd(COMMAND_CLIENT), length(15), etx(ETX) {}
         CommandClient::~CommandClient() {}
         void CommandClient::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -220,7 +220,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class CommandClientAck
-        CommandClientAck::CommandClientAck() : stx(STX), cmd(COMMAND_CLIENT_ACK), length(18), etx(ETX) {}
+        CommandClientAck::CommandClientAck() : stx(STX), cmd(COMMAND_CLIENT_ACK), length(16), etx(ETX) {}
         CommandClientAck::~CommandClientAck() {}
         void CommandClientAck::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -238,7 +238,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class SetupInfo
-        SetupInfo::SetupInfo() : stx(STX), cmd(SETUP_INFO), length(10), etx(ETX) {}
+        SetupInfo::SetupInfo() : stx(STX), cmd(SETUP_INFO), length(8), etx(ETX) {}
         SetupInfo::~SetupInfo() {}
         void SetupInfo::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -254,7 +254,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class SetupInfoAck
-        SetupInfoAck::SetupInfoAck() : stx(STX), cmd(SETUP_INFO_ACK), length(11), etx(ETX) {}
+        SetupInfoAck::SetupInfoAck() : stx(STX), cmd(SETUP_INFO_ACK), length(9), etx(ETX) {}
         SetupInfoAck::~SetupInfoAck() {}
         void SetupInfoAck::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -271,7 +271,7 @@ namespace core {
         }
         //////////////////////////////////////////////
         // Class RtuStatusReq
-        RtuStatusReq::RtuStatusReq() : stx(STX), cmd(RTU_STATUS_REQ), length(2), etx(ETX) {}
+        RtuStatusReq::RtuStatusReq() : stx(STX), cmd(RTU_STATUS_REQ), length(0), etx(ETX) {}
         RtuStatusReq::~RtuStatusReq() {}
         void RtuStatusReq::print() {
             std::cout << "CommandRtu: " << std::endl;
@@ -284,8 +284,11 @@ namespace core {
             printf("etx: 0x%02x \n", this->etx);
         }
         //////////////////////////////////////////////
+        // Class RtuStatus
+        RtuStatus::RtuStatus(SiteCode scd, Status stat) : siteCode(scd), status(stat) {}
+        //////////////////////////////////////////////
         // Class RtuStatusRes
-        RtuStatusRes::RtuStatusRes() : stx(STX), cmd(RTU_STATUS_RES), etx(ETX) {}
+        RtuStatusRes::RtuStatusRes() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0), etx(ETX) {}
         RtuStatusRes::~RtuStatusRes() {}
         void RtuStatusRes::print() {
             std::cout << "CommandRtu: " << std::endl;

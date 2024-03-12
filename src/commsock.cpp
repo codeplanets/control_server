@@ -36,9 +36,35 @@ namespace core {
                 return false;
             }
             // Keep alive
+            /**
+             * $ sysctl -a | grep -i keepalive
+             * net.ipv4.tcp_keepalive_intvl = 75
+             * net.ipv4.tcp_keepalive_probes = 9
+             * net.ipv4.tcp_keepalive_time = 7200
+             * $ sysctl -w net.ipv4.tcp_keepalive_time=120
+             * $ sysctl -w net.ipv4.tcp_keepalive_intvl=10
+             * $ sysctl -w net.ipv4.tcp_keepalive_probes=3
+             * 설정파일에 저장해두면 부팅시 로딩된다.
+             * $ vi /etc/sysctl.conf
+             * net.ipv4.tcp_keepalive_time=120
+             * net.ipv4.tcp_keepalive_intvl=10
+             * net.ipv4.tcp_keepalive_probes=3
+             * 설정파일은 재부팅시 반영되므로 바로 반영할경우는 아래처럼 해준다.
+             * $ sysctl -P
+            */
             int keepalive_on = 1;
             if(setsockopt(m_sock, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepalive_on, sizeof(keepalive_on)) == -1) {
                 syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(KEEPALIVE)", __FILE__, __LINE__);
+                return false;
+            }
+
+            struct timeval tv_timeo = { 3, 500000};
+            if (setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, (&tv_timeo), sizeof(struct timeval)) == -1) {
+                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(RCVTIMEO)", __FILE__, __LINE__);
+                return false;
+            }
+            if (setsockopt(m_sock, SOL_SOCKET, SO_SNDTIMEO, (&tv_timeo), sizeof(struct timeval)) == -1) {
+                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(SNDTIMEO)", __FILE__, __LINE__);
                 return false;
             }
 
@@ -96,6 +122,7 @@ namespace core {
         }
 
         bool CommSock::send(const DATA* buf, size_t len, int flags) const {
+            errno = 0;
             ssize_t status = ::send(m_sock, buf, len, flags);
             if(status == -1) {
                 syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);
@@ -105,6 +132,7 @@ namespace core {
 
         int CommSock::recv(DATA* buf, size_t len, int flags) const {
             memset(buf, 0, len + 1);
+            errno = 0;
             ssize_t status = ::recv(m_sock, buf, len, flags);
             if(status == -1) {
                 syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);

@@ -1,13 +1,13 @@
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+// #include <sys/types.h>
+// #include <sys/socket.h>
+// #include <netinet/in.h>
+// #include <arpa/inet.h>
 
 #include <cassert>
 
-#include <cstdio>
-#include <cstdlib>
+// #include <cstdio>
+// #include <cstdlib>
 #include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
 
@@ -32,12 +32,14 @@
 
 #include "db.h"
 
+#include <map>
+// #include <vector>
+// #include <list>
+
 using namespace std;
 using namespace core;
 
-const bool test = false;
-const int max_pool = 50;
-const int listen_backlog = 5;
+std::map<string, string> sitesMap;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
@@ -46,14 +48,15 @@ void setChldSignal();
 void setIntSignal();
 
 std::vector<pid_t> connected;
-std::map<std::string, std::string> sitesMap;
-void print_map(std::map<std::string, std::string>& m) {
+void print_map(std::map<std::string, std::string> &m) {
     for (std::map<std::string, std::string>::iterator itr = m.begin(); itr != m.end(); ++itr) {
         std::cout << itr->first << " " << itr->second << std::endl;
     }
 }
 
-void setSiteMap(std::map<std::string, std::string> &sc_map) {
+void setSiteMap(map<std::string, std::string> &sc_map) {
+    sc_map.clear();
+
     Database db;
     ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
     if (ecode!= EC_SUCCESS) {
@@ -73,20 +76,29 @@ void setSiteMap(std::map<std::string, std::string> &sc_map) {
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     syslog(LOG_DEBUG, "| SiteCode | SiteName | SiteID | Basin |");
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
-        syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
-        sc_map[sqlrow[0]] = sqlrow[2];
+    try {
+        while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+            syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
+            sc_map[sqlrow[0]] = sqlrow[2];
+            
+            if (sc_map.empty()) { cout << "map is empty." << endl; }
+            else cout << "map is not empty : " << sc_map.size() << endl;
+
+            common::sleep(1000);
+        }
+    } catch (exception& e) {
+        cout << e.what() << endl;
     }
+    
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     // print_map(sc_map);
-
-    cout << sc_map.find("2000004")->second << endl;   // 14
+    // cout << sc_map.find("2000004")->second << endl;   // 14
 }
 
 int main(int argc, char *argv[]) {
     // Log 설정
     setlogmask (LOG_UPTO (LOG_DEBUG));
-    openlog("Control Server", LOG_CONS|LOG_NDELAY|LOG_PERROR, LOG_USER);
+    openlog("Control Server", LOG_CONS|LOG_PERROR, LOG_USER);
 
     syslog(LOG_INFO, "Running server!");
     syslog(LOG_DEBUG, "Setting....");
@@ -103,6 +115,7 @@ int main(int argc, char *argv[]) {
     print_map(sitesMap);
     
     // Set Data
+    
     // core::formatter::RSite rSite = {.status = false, .pid = 0 };
     
     if(test) {
@@ -258,9 +271,9 @@ void start_child(server::ServerSocket newSock, int pid) {
         cout << "[" << getpid() << "] : " << endl;
         core::common::print_hex(data, len);
         
-        // 메시지 타입 구분
+        // 메시지 타입 구분 (RTUs / Cmd Clients)
         if (data[0] == STX) {
-            if (data[1] == INIT_REQ) {  // RTU
+            if (data[1] == INIT_REQ) {  // RTUs
                 syslog(LOG_DEBUG, "Start RTU Init Request");
                 InitReq msg;
                 memcpy((void*)&msg, data, len);
@@ -268,11 +281,23 @@ void start_child(server::ServerSocket newSock, int pid) {
 
                 RTUclient rtu(newSock);
                 rtu.init(msg);
+                rtu.setTimeout();
                 rtu.run();
 
-            } else if (data[1] == CLIENT_INIT_REQ) {    // CmdClients
+            } else if (data[1] == CLIENT_INIT_REQ) {    // Cmd Clients
                 syslog(LOG_DEBUG, "Client Init Request");
                 // TODO : CommandClients
+                ClientInitReq msg;
+                memcpy((void*)&msg, data, len);
+                msg.print();
+
+                CMDclient cmd(newSock);
+                // Generate Client Address
+                string cmdAddr = "1";
+                cmd.init(msg, cmdAddr);
+                cmd.setTimeout();
+                cmd.run();
+
             } else {
                 syslog(LOG_ERR, "Unknown message type");
                 common::sleep(500);
@@ -281,7 +306,6 @@ void start_child(server::ServerSocket newSock, int pid) {
             }
         }
     }
-    
 }
 
 void setChldSignal() {
@@ -306,6 +330,11 @@ void sigchld_handler(int signo) {
             return ele == spid;
             }
         );
+        
+        string file = "/dev/mqueue/rtu.";
+        file.append(std::to_string(spid));
+        unlink(file.c_str());
+        
         syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
     }
 }

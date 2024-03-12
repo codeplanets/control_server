@@ -12,16 +12,14 @@ namespace core {
     }
     
     Client::~Client() {
-        mq.close();
+        if (m_isCreatedMq) {
+            mq.close();
+        }
         updateStatus(false);
     }
 
-    void Client::init(ServerSocket& sock) {
-        newSock = sock;
-    }
-
-    bool Client::createMessageQueue() {
-        bool isCreated = mq.open(server_mq_name, getpid());
+    bool Client::createMessageQueue(std::string mq_name) {
+        bool isCreated = mq.open(mq_name, getpid());
         m_isCreatedMq = isCreated;
         return isCreated;
     }

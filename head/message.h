@@ -299,6 +299,7 @@ namespace core {
         };
         class RtuStatus {
         public:
+            RtuStatus(SiteCode scd, Status stat);
             SiteCode siteCode;
             Status status;
         };
@@ -315,7 +316,7 @@ namespace core {
             Address toAddr;
             unsigned short length;
             unsigned short count;
-            RtuStatus rtuStatus;
+            std::vector<RtuStatus> rtuStatus;
             CRC crc8;
             DATA etx;
         };
