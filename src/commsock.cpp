@@ -135,7 +135,9 @@ namespace core {
             errno = 0;
             ssize_t status = ::recv(m_sock, buf, len, flags);
             if(status == -1) {
-                syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);
+                if (errno != EAGAIN) {
+                    syslog(LOG_ERR, "[%s:%d-%s] : status == -1 errno == %d", __FILE__, __LINE__, __FUNCTION__, errno);
+                }
             }
             return status;
         }

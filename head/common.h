@@ -47,7 +47,7 @@ const std::string rtu_mq_name = "/rtu.";
 const std::string server_mq_name = "/server.";
 const std::string client_mq_name = "/client.";
 
-const bool test = true;
+const bool test = false;
 const int max_pool = 50;
 const int listen_backlog = 5;
 const u_int waiting_sec = 60;

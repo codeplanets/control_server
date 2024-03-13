@@ -48,51 +48,41 @@ void setChldSignal();
 void setIntSignal();
 
 std::vector<pid_t> connected;
-void print_map(std::map<std::string, std::string> &m) {
-    for (std::map<std::string, std::string>::iterator itr = m.begin(); itr != m.end(); ++itr) {
-        std::cout << itr->first << " " << itr->second << std::endl;
-    }
-}
-
-void setSiteMap(map<std::string, std::string> &sc_map) {
-    sc_map.clear();
-
+std::string find_rtu_addr(SiteCode scode) {
+    string addr = not_found;
     Database db;
     ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
     if (ecode!= EC_SUCCESS) {
         syslog(LOG_ERR, "DB Connection Error!");
         exit(EXIT_FAILURE);
     }
+    char* siteCode = scode.getSiteCode();
+    string query = "select * from RSite";
+    query += " where SiteCode = '";
+    query += siteCode;
+    query += "';";
+    cout << query << endl;
 
     // Query Data
     MYSQL_ROW sqlrow;
     MYSQL_RES* pRes;
-    ecode = db.db_query("select * from RSite", &pRes);
-    if (ecode!= EC_SUCCESS) {
+    ecode = db.db_query(query.c_str(), &pRes);
+    if (ecode != EC_SUCCESS) {
         syslog(LOG_ERR, "DB Query Error!");
         exit(EXIT_FAILURE);
     }
-
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     syslog(LOG_DEBUG, "| SiteCode | SiteName | SiteID | Basin |");
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     try {
         while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
             syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
-            sc_map[sqlrow[0]] = sqlrow[2];
-            
-            if (sc_map.empty()) { cout << "map is empty." << endl; }
-            else cout << "map is not empty : " << sc_map.size() << endl;
-
-            common::sleep(1000);
+            addr = sqlrow[2];
         }
     } catch (exception& e) {
         cout << e.what() << endl;
     }
-    
-    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    // print_map(sc_map);
-    // cout << sc_map.find("2000004")->second << endl;   // 14
+    return addr;
 }
 
 int main(int argc, char *argv[]) {
@@ -111,8 +101,8 @@ int main(int argc, char *argv[]) {
     int port = 5900;
 
     // Connect Database
-    setSiteMap(sitesMap);
-    print_map(sitesMap);
+    // setSiteMap(sitesMap);
+    // print_map(sitesMap);
     
     // Set Data
     
@@ -140,11 +130,16 @@ int main(int argc, char *argv[]) {
         memcpy(sendbuf, (char*)&res, sizeof(res));
         common::print_hex(sendbuf, sizeof(sendbuf));
 
-        char* siteCode = res.siteCode.getSiteCode();
-        cout << siteCode << endl;
-        string strAddr = sitesMap.find(siteCode)->second;// 7
-        delete siteCode;
-
+        // char* siteCode = res.siteCode.getSiteCode();
+        // cout << siteCode << endl;
+        // string strAddr = sitesMap.find(siteCode)->second;// 7
+        // delete siteCode;
+        string strAddr = find_rtu_addr(res.siteCode);
+        cout << strAddr << endl;
+        if (strAddr == not_found) {
+            strAddr = "0";
+        }
+        
         DATA ch[2];
         // u_short num으로 형변환 
         unsigned short num = stoi(strAddr);

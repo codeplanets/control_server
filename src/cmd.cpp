@@ -239,67 +239,49 @@ namespace core {
      * @return true if SiteCode is available, false otherwise
     */
     bool CMDclient::isSiteCodeAvailable() {
-        // TODO: check if site code is available
-        setSiteMap(this->sitesMap);
-        print_map(this->sitesMap);
-        
-        char* siteCode = this->scode.getSiteCode();
-        if (this->sitesMap.find(siteCode) != this->sitesMap.end()) {
-            cout << "contains this : " << siteCode << endl;
-            delete siteCode;
-            return true;
+        string siteCode = find_rtu_addr(this->scode);
+        if ( siteCode == not_found) {
+            return false;
         }
-
-        delete siteCode;
+        cout << "contains this : " << siteCode << endl;
         return true;
     }
 
     std::string CMDclient::find_rtu_addr(SiteCode scode) {
-        char* siteCode = scode.getSiteCode();
-        auto addr = this->sitesMap.find(siteCode);
-
-        if (addr != this->sitesMap.end()) {
-            cout << "SiteCode = " << addr->first << endl;
-            cout << "RTU Addr = " << addr->second << endl;
-            return addr->second;
-        } else {
-            return not_found;
-        }
-    }
-
-    void CMDclient::print_map(std::map<std::string, std::string>& m) {
-        for (std::map<std::string, std::string>::iterator itr = m.begin(); itr != m.end(); ++itr) {
-            std::cout << itr->first << " " << itr->second << std::endl;
-        }
-    }
-
-    void CMDclient::setSiteMap(std::map<std::string, std::string> &sc_map) {
+        string addr = not_found;
         Database db;
         ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
             exit(EXIT_FAILURE);
         }
+        char* siteCode = scode.getSiteCode();
+        string query = "select * from RSite";
+        query += " where SiteCode = '";
+        query += siteCode;
+        query += "';";
+        cout << query << endl;
 
         // Query Data
         MYSQL_ROW sqlrow;
         MYSQL_RES* pRes;
-        ecode = db.db_query("select * from RSite", &pRes);
-        if (ecode!= EC_SUCCESS) {
+        ecode = db.db_query(query.c_str(), &pRes);
+        if (ecode != EC_SUCCESS) {
             syslog(LOG_ERR, "DB Query Error!");
             exit(EXIT_FAILURE);
         }
-
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
         syslog(LOG_DEBUG, "| SiteCode | SiteName | SiteID | Basin |");
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-        while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
-            syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
-            sc_map[sqlrow[0]] = sqlrow[2];
+        try {
+            while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+                syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
+                addr = sqlrow[2];
+            }
+        } catch (exception& e) {
+            cout << e.what() << endl;
         }
-        syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-        print_map(sc_map);
-        cout << sc_map.find("2000004")->second << endl;   // 14
+        return addr;
     }
 
 }

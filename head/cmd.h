@@ -13,9 +13,6 @@ namespace core {
         Action action;
         ActionResult actResult;
 
-    protected:
-        std::map<std::string, std::string> sitesMap;
-
     public:
         CMDclient(ServerSocket& sock);
         ~CMDclient();
@@ -37,8 +34,6 @@ namespace core {
     
     protected:
         std::string find_rtu_addr(SiteCode scode);
-        void print_map(std::map<std::string, std::string>& m);
-        void setSiteMap(std::map<std::string, std::string> &sc_map);
     };
 }
 

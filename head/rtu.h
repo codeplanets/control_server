@@ -6,9 +6,6 @@ void rtu_timeout_handler(int sig);
 namespace core {
 
     class RTUclient : public Client {
-    protected:
-        std::map<std::string, std::string> sitesMap;
-
     public:
         RTUclient(ServerSocket& sock);
         ~RTUclient();
@@ -29,8 +26,6 @@ namespace core {
     
     protected:
         std::string find_rtu_addr(SiteCode scode);
-        void print_map(std::map<std::string, std::string>& m);
-        void setSiteMap(std::map<std::string, std::string> &sc_map);
     };
 }
 
