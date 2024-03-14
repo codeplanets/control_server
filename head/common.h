@@ -60,6 +60,7 @@ namespace core {
         void print_hex(DATA *buf, int size);
         u_short convert_be_to_le(DATA* be, int size);
         DATA calcCRC(DATA *buf, int size);
+        bool checkCRC(DATA *buf, int size, DATA crc);
     }
 }
 

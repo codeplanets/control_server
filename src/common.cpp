@@ -38,21 +38,31 @@ namespace core {
             return 0;
         }
         DATA calcCRC(DATA *buf, int size) {
+            if (size < 10) {
+                return 0x00;
+            }
+
             DATA CRC = 0x00;
-            // for (int i = 0; i < size; i++) {
-            //     CRC ^= buf[i];
-            //     for (int j = 0; j < 8; j++) {
-            //         if (CRC & 0x80) {
-            //             CRC = (CRC << 1) ^ 0x31;
-            //         } else {
-            //             CRC = (CRC << 1);
-            //         }
-            //     }
-            // }
-            for (int i = 0; i < size; i++) {
+            int len = size - 2;
+
+            for (int i = 0; i < len; i++) {
                 CRC ^= *(buf + i);
             }
+            CRC = CRC & 0x7F;
+
             return CRC;
+        }
+
+        bool checkCRC(DATA *buf, int size, DATA crc) {
+            if (size < 10) {
+                return false;
+            }
+
+            if (crc != calcCRC(buf, size)) {
+                return false;
+            }
+
+            return true;
         }
     }
 	

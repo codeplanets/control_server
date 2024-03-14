@@ -52,7 +52,7 @@ namespace core {
             msg.toAddr = this->serverAddr;
             msg.siteCode = this->scode;
             msg.rtuAddr = this->rtuAddr;
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -66,7 +66,7 @@ namespace core {
             msg.fromAddr = this->rtuAddr;
             msg.toAddr = this->serverAddr;
 
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -77,7 +77,7 @@ namespace core {
             CommandRtu msg;
             cout << "Command RTU size = " << sizeof(msg) << endl;
 
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
 
             memcpy(buf, (char*)&msg, sizeof(msg));
             common::print_hex(buf, sizeof(msg));
@@ -140,20 +140,50 @@ namespace core {
                 }
 
                 if (sock_buf[0] == STX) {
-                    if (sock_buf[1] == HEART_BEAT) {  // RTU
+                    if (sock_buf[1] == INIT_REQ) {  // RTUs
+                        syslog(LOG_DEBUG, "RTU Init Request");
+                        InitReq msg;
+                        memcpy((void*)&msg, sock_buf, sizeof(msg));
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
+                        msg.print();
+
+                        if (isSiteCodeAvailable() == false) {
+                            newSock.send(sendbuf, len);
+                            common::sleep(5000);
+                            return;
+                        }
+                        len = reqMessage(sendbuf, INIT_RES);
+                        newSock.send(sendbuf, len);
+
+                    } else if (sock_buf[1] == HEART_BEAT) {  // RTU
                         syslog(LOG_DEBUG, "Heartbeat.");
                         alarm(waiting_sec);
+                        HeartBeat msg;
+                        memcpy((void*)&msg, sock_buf, sizeof(msg));
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
+                        msg.print();
+                        
 
                         len = reqMessage(sendbuf, HEART_BEAT_ACK);
                         newSock.send(sendbuf, len);
 
                     } else if (sock_buf[1] == COMMAND_RTU_ACK) {  // Client
                         syslog(LOG_DEBUG, "Command RTU Ack.");
+                        CommandRtuAck msg;
+                        memcpy((void*)&msg, sock_buf, sizeof(msg));
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
+                        msg.print();
 
                         size_t msg_len = sizeof(sock_buf);
                         cout << mq.send(sock_buf, msg_len) << endl;
 
-                        // updateDatabase();
+                        // TODO : updateDatabase();
                     } else {
                         syslog(LOG_WARNING, "Unknown message type from socket.");
                     }

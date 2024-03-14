@@ -23,7 +23,7 @@ namespace core {
         updateStatus(false);
     }
 
-    void CMDclient::init(ClientInitReq &msg, std::string addr) {
+    void CMDclient::init(ClientInitReq &msg, u_short addr) {
         this->serverAddr = msg.fromAddr;
         this->cmdAddr.setAddr(addr, CLIENT_ADDRESS);
 
@@ -46,7 +46,7 @@ namespace core {
             msg.fromAddr = this->serverAddr;
             msg.toAddr = this->cmdAddr;
             msg.clientAddr = this->cmdAddr;
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -63,7 +63,7 @@ namespace core {
             msg.siteCode = this->scode;
             msg.dcCommand = this->dcCommand;
             msg.acCommand = this->acCommand;
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -81,7 +81,7 @@ namespace core {
             msg.dcCommand = this->dcCommand;
             msg.acCommand = this->acCommand;
             msg.result = this->cmdResult;
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -98,7 +98,7 @@ namespace core {
             msg.action = this->action;
             msg.siteCode = this->scode;
             msg.result = this->actResult;
-            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg) - 2));
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
             msg.print();
 
             memcpy(buf, (char*)&msg, sizeof(msg));
@@ -164,6 +164,9 @@ namespace core {
                         // insertDatabase(msg);
                         CommandClient msg;
                         memcpy((void*)&msg, sock_buf, len);
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
                         msg.print();
 
                         this->scode = msg.siteCode;
@@ -192,6 +195,9 @@ namespace core {
                         
                         SetupInfo msg;
                         memcpy((void*)&msg, sock_buf, len);
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
                         msg.print();
                         
                         this->serverAddr = msg.fromAddr;

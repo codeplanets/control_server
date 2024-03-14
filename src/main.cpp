@@ -7,7 +7,7 @@
 #include <cassert>
 
 // #include <cstdio>
-// #include <cstdlib>
+#include <cstdlib>      // system()
 #include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
 
@@ -15,6 +15,9 @@
 
 #include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
 #include <iostream>
+
+#include <queue>
+#include <functional>
 
 #include "sem.h"
 
@@ -32,14 +35,12 @@
 
 #include "db.h"
 
-#include <map>
+// #include <map>
 // #include <vector>
 // #include <list>
 
 using namespace std;
 using namespace core;
-
-std::map<string, string> sitesMap;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
@@ -48,6 +49,8 @@ void setChldSignal();
 void setIntSignal();
 
 std::vector<pid_t> connected;
+std::priority_queue<u_short, vector<u_short>, less<u_short>> cmdAddrQueue;
+
 std::string find_rtu_addr(SiteCode scode) {
     string addr = not_found;
     Database db;
@@ -85,6 +88,11 @@ std::string find_rtu_addr(SiteCode scode) {
     return addr;
 }
 
+void clearMessageQueue() {
+    std::system("rm -rf /dev/mqueue/rtu.*");
+    std::system("rm -rf /dev/mqueue/client.*");
+}
+
 int main(int argc, char *argv[]) {
     // Log 설정
     setlogmask (LOG_UPTO (LOG_DEBUG));
@@ -98,77 +106,90 @@ int main(int argc, char *argv[]) {
     setChldSignal();
     
     // Configuration
-    int port = 5900;
+    int rtu_port = 5900;
+    int cmd_port = 5901;
 
-    // Connect Database
-    // setSiteMap(sitesMap);
-    // print_map(sitesMap);
-    
     // Set Data
-    
+    for (u_short i = 0x01; i < 0xFF; i++) {
+		cmdAddrQueue.push(i);
+        printf("0x%04x ", i);
+	}
+    printf("\n");
+
     // core::formatter::RSite rSite = {.status = false, .pid = 0 };
     
     if(test) {
         //////////////////////////////////////////////////////////////
-        DATA addr[2] = {0x00,};
-        addr[0] = 0x1F;
-        addr[1] = 0xFF;
-        const char* site = "1000007";
+        const char* site = "1000001";
         //////////////////////////////////////////////////////////////
         // message structure 변환 확인
+        DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
+
         InitReq req;
+        cout << sizeof(req) << endl;
+        req.fromAddr.setAddr(DEFAULT_ADDRESS);
+        req.toAddr.setAddr(SERVER_ADDRESS);
+        req.siteCode.setSiteCode(site);
+        req.crc8.setCRC8(common::calcCRC((DATA*)&req, sizeof(req)));
+        memcpy(sendbuf, (char*)&req, sizeof(req));
+        common::print_hex(sendbuf, sizeof(req));
+
         InitRes res;
         cout << sizeof(res) << endl;
-        res.fromAddr.setAddr(addr, sizeof(addr));
-        res.toAddr.setAddr(addr, sizeof(addr));
+        res.fromAddr.setAddr(1, RTU_ADDRESS);
+        res.toAddr.setAddr(SERVER_ADDRESS);
         res.siteCode.setSiteCode(site);
-        res.rtuAddr.setAddr(addr, sizeof(addr));
-        res.crc8.setCRC8(0x00);
-        DATA sendbuf[sizeof(res)] = {0x00, };
+        res.rtuAddr.setAddr(1, RTU_ADDRESS);
+        res.crc8.setCRC8(common::calcCRC((DATA*)&res, sizeof(res)));
         memcpy(sendbuf, (char*)&res, sizeof(res));
-        res.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
-        memcpy(sendbuf, (char*)&res, sizeof(res));
-        common::print_hex(sendbuf, sizeof(sendbuf));
+        common::print_hex(sendbuf, sizeof(res));
 
-        // char* siteCode = res.siteCode.getSiteCode();
-        // cout << siteCode << endl;
-        // string strAddr = sitesMap.find(siteCode)->second;// 7
-        // delete siteCode;
+        ClientInitReq cmdreq;
+        cout << sizeof(cmdreq) << endl;
+        cmdreq.fromAddr.setAddr(SERVER_ADDRESS);
+        cmdreq.toAddr.setAddr(DEFAULT_ADDRESS);
+        cmdreq.crc8.setCRC8(common::calcCRC((DATA*)&cmdreq, sizeof(cmdreq)));
+        memcpy(sendbuf, (char*)&cmdreq, sizeof(cmdreq));
+        common::print_hex(sendbuf, sizeof(cmdreq));
+
+        ClientInitRes cmdres;
+        cout << sizeof(cmdres) << endl;
+        cmdres.fromAddr.setAddr(SERVER_ADDRESS);
+        cmdres.toAddr.setAddr(1, CLIENT_ADDRESS);
+        cmdres.clientAddr.setAddr(1, CLIENT_ADDRESS);
+        cmdres.crc8.setCRC8(common::calcCRC((DATA*)&cmdres, sizeof(cmdres)));
+        memcpy(sendbuf, (char*)&cmdres, sizeof(cmdres));
+        common::print_hex(sendbuf, sizeof(cmdres));
+
+        //////////////////////////////////////////////////////////////
         string strAddr = find_rtu_addr(res.siteCode);
         cout << strAddr << endl;
         if (strAddr == not_found) {
             strAddr = "0";
         }
         
+        //////////////////////////////////////////////////////////////
         DATA ch[2];
         // u_short num으로 형변환 
         unsigned short num = stoi(strAddr);
         // 0x0001 으로 변환됨
         printf("hex : 0x%04x, %u \n", num, num);
-
         // u_short 을 char[] 변환, endian 변환
         ch[0]=(char)(num >> 8) | RTU_ADDRESS; // | 0x10 주의
         ch[1]=(char)(num & 0x00ff);
-        
         printf("0x%02x, 0x%02x \n", ch[0], ch[1]);
         res.rtuAddr.setAddr(ch, sizeof(ch));
         printf("0x%04x, %u \n", res.rtuAddr.getAddr(), res.rtuAddr.getAddr());
+        res.crc8.setCRC8(common::calcCRC((DATA*)&res, sizeof(res)));
         memcpy(sendbuf, (char*)&res, sizeof(res));
-
-        res.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
-        memcpy(sendbuf, (char*)&res, sizeof(res));
-        common::print_hex(sendbuf, sizeof(sendbuf));
-
-        //////////////////////////////////////////////////////////////
-        InitRes msg;
-        memcpy((void*)&msg, sendbuf, sizeof(msg));
-        msg.crc8.setCRC8(common::calcCRC(sendbuf, sizeof(sendbuf) - 2));
-        msg.print();
+        common::print_hex(sendbuf, sizeof(res));
         //////////////////////////////////////////////////////////////
         // message queue 송수신 확인
         Mq mq;
         mq.open(rtu_mq_name, getpid());
-        cout << mq.send(sendbuf, sizeof(sendbuf)) << endl;
+
+        cout << mq.send(sendbuf, sizeof(res)) << endl;
+
         DATA buf[MAX_RAW_BUFF] = {0x00,};
         cout << mq.recv(buf, sizeof(buf)) << endl;
         //////////////////////////////////////////////////////////////
@@ -185,21 +206,25 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    clearMessageQueue();
+
     pid_t pid;
     try {
-        server::ServerSocket server(port);
+        server::ServerSocket rtu_server(rtu_port);
+        server::ServerSocket cmd_server(cmd_port);
         syslog(LOG_DEBUG, "[Parent process] : listening.......");
 
         while(true) {
-            common::sleep(1000);
+            common::sleep(100);
             server::ServerSocket new_sock;
-            while(server.accept(new_sock)) {
+            while(rtu_server.accept(new_sock) || cmd_server.accept(new_sock)) {
                 
                 pid = fork();
 
                 if (pid == 0) {
                     syslog(LOG_DEBUG, "[Child process] %d << %d", getpid(), getppid());
-                    server.close();
+                    rtu_server.close();
+                    cmd_server.close();
 
                     start_child(new_sock, getpid());
                     
@@ -241,9 +266,9 @@ int main(int argc, char *argv[]) {
     /**
      * [v] Setting named semaphore ( <== MUTEX )
      * [ ] Loading ini file
-     * [ ] Init Database
+     * [v] Init Database
      * [ ] Getting ip, port....
-     * [ ] Clear memory
+     * [v] Clear memory
      * [v] Create parents server listener socket
      * ``` 
      * 
@@ -272,6 +297,9 @@ void start_child(server::ServerSocket newSock, int pid) {
                 syslog(LOG_DEBUG, "Start RTU Init Request");
                 InitReq msg;
                 memcpy((void*)&msg, data, len);
+                if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                    syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                }
                 msg.print();
 
                 RTUclient rtu(newSock);
@@ -284,11 +312,20 @@ void start_child(server::ServerSocket newSock, int pid) {
                 // TODO : CommandClients
                 ClientInitReq msg;
                 memcpy((void*)&msg, data, len);
+                if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                    syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                }
                 msg.print();
 
                 CMDclient cmd(newSock);
                 // Generate Client Address
-                string cmdAddr = "1";
+                u_short cmdAddr = 1;
+                if (!cmdAddrQueue.empty()) {
+                    cmdAddr = cmdAddrQueue.top();
+                    cmdAddrQueue.pop();
+                } else {
+                    syslog(LOG_ERR, "No more addresses to use.");
+                }
                 cmd.init(msg, cmdAddr);
                 cmd.setTimeout();
                 cmd.run();
@@ -302,6 +339,29 @@ void start_child(server::ServerSocket newSock, int pid) {
         }
     }
 }
+
+// void setQuitSignal() {
+//     struct sigaction act;
+//     act.sa_handler = sigquit_handler;
+//     sigemptyset(&act.sa_mask);
+//     act.sa_flags = 0;
+//     sigaction(SIGQUIT, &act, 0);
+// }
+// void sigquit_handler(int signo) {
+//     int status;
+//     pid_t spid;
+//     spid = wait(&status);
+//     syslog(LOG_DEBUG, "Interactive attention signal. (Quit signal)");
+//     syslog(LOG_DEBUG, "PID         : %d", spid);
+//     syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
+//     syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
+//     syslog(LOG_DEBUG, "Exit Signal : %d", WTERMSIG(status));
+//     syslog(LOG_DEBUG, "Exit Core   : %d", WCOREDUMP(status));
+//     syslog(LOG_DEBUG, "Exit Status : %d", WIFSIGNALED(status));
+//     common::close_sem();
+//     closelog();
+//     exit(EXIT_SUCCESS);
+// }
 
 void setChldSignal() {
     struct sigaction act;
@@ -352,14 +412,12 @@ void sigint_handler(int signo) {
     syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
     syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
 
-    string file = "/dev/mqueue/rtu.";
-    file.append(std::to_string(getpid()));
-    unlink(file.c_str());
+    // string file = "/dev/mqueue/rtu.";
+    // file.append(std::to_string(getpid()));
+    // unlink(file.c_str());
     
     common::close_sem();
-    cout << "0" << endl;
     closelog();
-    cout << "1" << endl;
     exit(EXIT_SUCCESS);
 }
 

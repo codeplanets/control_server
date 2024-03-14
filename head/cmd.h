@@ -17,7 +17,7 @@ namespace core {
         CMDclient(ServerSocket& sock);
         ~CMDclient();
 
-        void init(ClientInitReq &msg, std::string addr);
+        void init(ClientInitReq &msg, u_short addr);
         void setSiteCode(char* scode);
         void setTimeout();
         
