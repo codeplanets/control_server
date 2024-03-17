@@ -15,8 +15,8 @@ namespace core {
             if (gRunning == SEM_FAILED) {
                 if (errno == EEXIST) {
                     bRet = true;
-                    // sem_close(gRunning);
-                    // sem_unlink(SERVER_SEMAPHORE);
+                    sem_close(gRunning);
+                    sem_unlink(SERVER_SEMAPHORE);
                 }
             }
             return bRet;

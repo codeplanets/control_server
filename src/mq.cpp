@@ -45,19 +45,19 @@ namespace core {
         
         void Mq::close(void) {
             // close message queue
-            if (m_mq_fd == (mqd_t)-1) {
+            if (m_mq_fd != (mqd_t)-1) {
                 if (mq_close(m_mq_fd) < 0) {
-                    syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
+                    // syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
                 } else {
                     syslog(LOG_DEBUG, "mq_close()");
                 }
 
                 // remove message queue
-                if (mq_unlink(m_mqname.c_str()) < 0) {
-                    syslog(LOG_ERR, "Failed mq_unlink() : %s", strerror(errno));
-                } else {
-                    syslog(LOG_DEBUG, "mq_unlink()");
-                }
+                // if (mq_unlink(m_mqname.c_str()) < 0) {
+                //     syslog(LOG_ERR, "Failed mq_unlink() : %s", strerror(errno));
+                // } else {
+                //     syslog(LOG_DEBUG, "mq_unlink()");
+                // }
             }
         }
         
@@ -84,6 +84,11 @@ namespace core {
         }
 
         bool Mq::recv(DATA* r, size_t len) {
+            mq_getattr(m_mq_fd, &m_mq_attrib);
+            if (m_mq_attrib.mq_curmsgs == 0) {
+                return false;
+            }
+            
             int rcvByte = mq_receive(m_mq_fd, (char*)r, len, 0);
             if (rcvByte < 0) {
                 syslog(LOG_ERR, "Failed mq_receive() : %s", strerror(errno));

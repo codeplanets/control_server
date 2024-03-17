@@ -48,14 +48,28 @@ const std::string server_mq_name = "/server.";
 const std::string client_mq_name = "/client.";
 
 const bool test = false;
-const int max_pool = 50;
+const int max_pool = 255;
 const int listen_backlog = 5;
 const u_int waiting_sec = 60;
 
 const std::string not_found = "NONE";
+const std::string rtu_data = "./data/rtu.data";
+const std::string client_data = "./data/cmd.data";
 
 namespace core {
     namespace common {
+        typedef struct mq_rtu_mapper {
+            pid_t pid;
+            u_short addr;
+
+            bool operator < (const mq_rtu_mapper &var) const {
+                if (pid == var.pid) return addr < var.addr;
+                return pid > var.pid;
+            }
+        } MAPPER;
+
+        // static MAPPER mapper_list[max_pool] = {0, };
+
         void sleep(unsigned int dwMilliSec);
         void print_hex(DATA *buf, int size);
         u_short convert_be_to_le(DATA* be, int size);

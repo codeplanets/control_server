@@ -19,12 +19,14 @@ namespace core {
         Address cmdAddr;
         SiteCode scode;
         Mq mq;
+        u_short m_addr;
         bool m_isCreatedMq;
     
     public:
         Client(ServerSocket& sock);
         ~Client();
 
+        u_short getCmdAddr() { return m_addr; }
         /**
          * @return true if SiteCode is available, false otherwise
         */

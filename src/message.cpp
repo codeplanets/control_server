@@ -98,7 +98,7 @@ namespace core {
         InitRes::InitRes() : stx(STX), cmd(INIT_RES), length(9), etx(ETX) {}
         InitRes::~InitRes() {}
         void InitRes::print() {
-            std::cout << "InitReq: " << std::endl;
+            std::cout << "InitRes: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -159,7 +159,7 @@ namespace core {
         CommandRtuAck::CommandRtuAck() : stx(STX), cmd(COMMAND_RTU_ACK), length(16), etx(ETX) {}
         CommandRtuAck::~CommandRtuAck() {}
         void CommandRtuAck::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "CommandRtuAck: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -177,7 +177,7 @@ namespace core {
         ClientInitReq::ClientInitReq() : stx(STX), cmd(CLIENT_INIT_REQ), length(0), etx(ETX) {}
         ClientInitReq::~ClientInitReq() {}
         void ClientInitReq::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "ClientInitReq: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -191,7 +191,7 @@ namespace core {
         ClientInitRes::ClientInitRes() : stx(STX), cmd(CLIENT_INIT_RES), length(2), etx(ETX) {}
         ClientInitRes::~ClientInitRes() {}
         void ClientInitRes::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "ClientInitRes: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -206,7 +206,7 @@ namespace core {
         CommandClient::CommandClient() : stx(STX), cmd(COMMAND_CLIENT), length(15), etx(ETX) {}
         CommandClient::~CommandClient() {}
         void CommandClient::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "CommandClient: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -223,7 +223,7 @@ namespace core {
         CommandClientAck::CommandClientAck() : stx(STX), cmd(COMMAND_CLIENT_ACK), length(16), etx(ETX) {}
         CommandClientAck::~CommandClientAck() {}
         void CommandClientAck::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "CommandClientAck: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -241,7 +241,7 @@ namespace core {
         SetupInfo::SetupInfo() : stx(STX), cmd(SETUP_INFO), length(8), etx(ETX) {}
         SetupInfo::~SetupInfo() {}
         void SetupInfo::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "SetupInfo: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -257,7 +257,7 @@ namespace core {
         SetupInfoAck::SetupInfoAck() : stx(STX), cmd(SETUP_INFO_ACK), length(9), etx(ETX) {}
         SetupInfoAck::~SetupInfoAck() {}
         void SetupInfoAck::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "SetupInfoAck: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -274,7 +274,7 @@ namespace core {
         RtuStatusReq::RtuStatusReq() : stx(STX), cmd(RTU_STATUS_REQ), length(0), etx(ETX) {}
         RtuStatusReq::~RtuStatusReq() {}
         void RtuStatusReq::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "RtuStatusReq: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
@@ -291,7 +291,7 @@ namespace core {
         RtuStatusRes::RtuStatusRes() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0), etx(ETX) {}
         RtuStatusRes::~RtuStatusRes() {}
         void RtuStatusRes::print() {
-            std::cout << "CommandRtu: " << std::endl;
+            std::cout << "RtuStatusRes: " << std::endl;
             printf("stx: 0x%02x \n", this->stx);
             printf("cmd: 0x%02x \n", this->cmd);
             printf("frm: 0x%04x \n", this->fromAddr.getAddr());
