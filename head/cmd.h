@@ -1,17 +1,24 @@
 #pragma once
 
 #include "client.h"
-#include <set>
 
-void rtu_timeout_handler(int sig);
+void cmd_timeout_handler(int sig);
 namespace core {
 
-    class RTUclient : public Client {
-    public:
-        RTUclient(ServerSocket& sock);
-        ~RTUclient();
+    class CMDclient : public Client {
+    private:
+        Command dcCommand;
+        Command acCommand;
+        CommandResult cmdResult;
+        Action action;
+        ActionResult actResult;
 
-        void init(InitReq &msg);
+    public:
+        CMDclient(ServerSocket& sock);
+        ~CMDclient();
+
+        void init(ClientInitReq &msg, u_short addr);
+        void setSiteCode(char* scode);
         void setTimeout();
         
         /**

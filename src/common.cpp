@@ -11,7 +11,7 @@ namespace core {
                 ::usleep(milliSec * 1000);
             } else {
                 unsigned int sec = milliSec / 1000;
-                unsigned int microSec = (microSec - sec * 1000) * 1000;
+                unsigned int microSec = (milliSec - sec * 1000) * 1000;
                 ::sleep(sec);
                 ::usleep(microSec);
             }
@@ -30,12 +30,39 @@ namespace core {
                 u_short x = 0;
                 memcpy(&x, be, size);
                 // std::cout << "BigEndian: " << x << std::endl;
-                x = x & 0xFF0F; // Section clear
+                // x = x & 0xFF0F; // Section clear
                 x = ((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8);
                 // std::cout << "LittleEndian: " << x << std::endl;
                 return x;
             }
             return 0;
+        }
+        DATA calcCRC(DATA *buf, int size) {
+            if (size < 10) {
+                return 0x00;
+            }
+
+            DATA CRC = 0x00;
+            int len = size - 2;
+
+            for (int i = 0; i < len; i++) {
+                CRC ^= *(buf + i);
+            }
+            CRC = CRC & 0x7F;
+
+            return CRC;
+        }
+
+        bool checkCRC(DATA *buf, int size, DATA crc) {
+            if (size < 10) {
+                return false;
+            }
+
+            if (crc != calcCRC(buf, size)) {
+                return false;
+            }
+
+            return true;
         }
     }
 	

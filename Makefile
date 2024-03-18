@@ -3,7 +3,7 @@
 CC = g++
 AR = ar
 EXP = export
-CFLAGS = -c -g
+CFLAGS = -c -g -Wall
 
 SRCS = ${wildcard src/*.cpp}
 OBJS = ${SRCS:src/%.cpp=build/%.o}
@@ -23,9 +23,9 @@ GMOCKDIR = /workspaces/control_server/googlemock
 INCLUDE = -I. ${HEADS} -I${GTESTDIR}/include -I${GMOCKDIR}/include -I${HEADERPATH}
 
 ifeq (${MAKECMDGOALS}, test)
-TESTFLAG = -std=c++20 -DUNITTEST ${INCLUDE}
+TESTFLAG = -std=c++23 -DUNITTEST ${INCLUDE}
 else
-TESTFLAG = -std=c++20 ${INCLUDE}
+TESTFLAG = -std=c++23 ${INCLUDE}
 endif
 
 TARGET = controlserver

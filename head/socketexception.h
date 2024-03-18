@@ -6,8 +6,8 @@
 namespace core {
     class SocketException {
     private:
-        std::string m_s;
         ECODE m_c;
+        std::string m_s;
 
     public:
         SocketException(ECODE c, std::string s)

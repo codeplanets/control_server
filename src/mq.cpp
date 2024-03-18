@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "mq.h"
 
-const char* name_posix_mq = "/mq_";
+const string name_posix_mq = "/server.";
 
 namespace core {
     namespace system {
@@ -15,10 +15,10 @@ namespace core {
             close();
         }
 
-        bool Mq::open(int pid) {
+        bool Mq::open(const string name, int pid) {
 
             // message queue 이름 설정 ("mq_" + pid)
-            m_mqname = get_mq_name(name_posix_mq, pid);
+            m_mqname = make_mq_name(name, pid);
             syslog(LOG_INFO, "Message Queue name : %s", m_mqname.c_str());
 
             // message queue 생성
@@ -45,29 +45,35 @@ namespace core {
         
         void Mq::close(void) {
             // close message queue
-            if (mq_close(m_mq_fd) < 0) {
-                syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
-            } else {
-                syslog(LOG_DEBUG, "mq_close()");
-            }
+            if (m_mq_fd != (mqd_t)-1) {
+                if (mq_close(m_mq_fd) < 0) {
+                    // syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
+                } else {
+                    syslog(LOG_DEBUG, "mq_close()");
+                }
 
-            // remove message queue
-            if (mq_unlink(m_mqname.c_str()) < 0) {
-                syslog(LOG_ERR, "Failed mq_unlink() : %s", strerror(errno));
-            } else {
-                syslog(LOG_DEBUG, "mq_unlink()");
+                // remove message queue
+                // if (mq_unlink(m_mqname.c_str()) < 0) {
+                //     syslog(LOG_ERR, "Failed mq_unlink() : %s", strerror(errno));
+                // } else {
+                //     syslog(LOG_DEBUG, "mq_unlink()");
+                // }
             }
         }
         
-        std::string Mq::get_mq_name(const char* name, int pid) {
+        std::string Mq::make_mq_name(const string name, int pid) {
             string mq_name;
             mq_name.append(name);
             mq_name.append(std::to_string(pid));
             return mq_name.c_str();
         }
 
+        std::string Mq::get_mq_name() {
+            return this->m_mqname;
+        }
+
         bool Mq::send(DATA* s, size_t len) {
-            syslog(LOG_DEBUG, "mq_send : %d Bytes", len);
+            syslog(LOG_DEBUG, "mq_send : %ld Bytes", len);
             common::print_hex(s, len);
 
             if (mq_send(m_mq_fd, (char*)s, len, 0) < 0) {
@@ -78,6 +84,11 @@ namespace core {
         }
 
         bool Mq::recv(DATA* r, size_t len) {
+            mq_getattr(m_mq_fd, &m_mq_attrib);
+            if (m_mq_attrib.mq_curmsgs == 0) {
+                return false;
+            }
+            
             int rcvByte = mq_receive(m_mq_fd, (char*)r, len, 0);
             if (rcvByte < 0) {
                 syslog(LOG_ERR, "Failed mq_receive() : %s", strerror(errno));

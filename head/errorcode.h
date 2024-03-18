@@ -3,6 +3,7 @@
 typedef int ECODE;
 
 #define	EC_SUCCESS				0
+#define EC_FAILURE              1
 #define EC_INVALID_FILE			20000
 #define EC_ENDOFFILE			20001
 #define EC_NO_FILE				20002
