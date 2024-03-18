@@ -220,7 +220,7 @@ namespace core {
                             pid = *it;
                             if (pid != 0) {
                                 rtu_mq.open(rtu_mq_name, pid);
-                                rtu_mq.send(sock_buf, len);
+                                rtu_mq.send(mq_buf, len);
                                 rtu_mq.close();
                             }
                         }
