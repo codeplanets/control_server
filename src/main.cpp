@@ -36,7 +36,7 @@ std::vector<pid_t> connected;
 std::priority_queue<u_short, vector<u_short>, greater<u_short>> cmdAddrQueue;
 
 std::string find_rtu_addr(SiteCode scode) {
-    string addr = not_found;
+    string addr = NOT_FOUND;
     Database db;
     ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
     if (ecode!= EC_SUCCESS) {
@@ -90,7 +90,7 @@ pid_t find_rtu_pid(core::common::MAPPER* list, int idx, u_short addr) {
     return -1;
 }
 
-core::common::MAPPER rtu_mapper_list[max_pool] = {0, };
+core::common::MAPPER rtu_mapper_list[MAX_POOL] = {0, };
 
 void createDataFile(std::string filename) {
     FILE * f = fopen(filename.c_str(), "w");
@@ -105,7 +105,7 @@ core::common::MAPPER add_mapper(int pid, u_short addr) {
 }
 
 void print_mapper(core::common::MAPPER* mapper) {
-    for (int i = 0; i < max_pool; i++) {
+    for (int i = 0; i < MAX_POOL; i++) {
         if (mapper[i].pid != 0) {
             syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
         }
@@ -147,7 +147,7 @@ bool delete_mapper(core::common::MAPPER* mapper, int idx, int pid) {
 }
 void write_mapper(std::string filename, core::common::MAPPER* mapper) {
     FILE * f = fopen(filename.c_str(), "w");
-    for (int i = 0; i < max_pool; i++) {
+    for (int i = 0; i < MAX_POOL; i++) {
         if (mapper[i].pid != 0) {
             fprintf(f, "%d %hd\n", mapper[i].pid, mapper[i].addr);
         }
@@ -158,7 +158,7 @@ void write_mapper(std::string filename, core::common::MAPPER* mapper) {
 void read_mapper(std::string filename, core::common::MAPPER* mapper) {
     FILE * f = fopen(filename.c_str(), "r");
 
-    for (int i = 0; i < max_pool; i++) {
+    for (int i = 0; i < MAX_POOL; i++) {
         fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
     }
     fclose(f);
@@ -199,44 +199,44 @@ int main(int argc, char *argv[]) {
 		cmdAddrQueue.push(i);
 	}
     // core::formatter::RSite rSite = {.status = false, .pid = 0 };
-    createDataFile(rtu_data);
-    createDataFile(client_data);
+    createDataFile(RTU_DATA);
+    createDataFile(CLIENT_DATA);
 
     if(test) {
         cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::MAPPER)<< endl;
 
-        // read_mapper(rtu_data, rtu_mapper_list);
+        // read_mapper(RTU_DATA, rtu_mapper_list);
         
-        cout << getTotalLine(rtu_data) << endl;
-        rtu_mapper_list[getTotalLine(rtu_data)] = add_mapper(123447, 1001);
-        write_mapper(rtu_data, rtu_mapper_list);
+        cout << getTotalLine(RTU_DATA) << endl;
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123447, 1001);
+        write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
-        cout << getTotalLine(rtu_data) << endl;
-        rtu_mapper_list[getTotalLine(rtu_data)] = add_mapper(123445, 1001);
-        write_mapper(rtu_data, rtu_mapper_list);
+        cout << getTotalLine(RTU_DATA) << endl;
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1001);
+        write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
-        cout << getTotalLine(rtu_data) << endl;
-        rtu_mapper_list[getTotalLine(rtu_data)] = add_mapper(123448, 1001);
-        write_mapper(rtu_data, rtu_mapper_list);
+        cout << getTotalLine(RTU_DATA) << endl;
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123448, 1001);
+        write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
-        cout << getTotalLine(rtu_data) << endl;
-        rtu_mapper_list[getTotalLine(rtu_data)] = add_mapper(123445, 1001);
-        write_mapper(rtu_data, rtu_mapper_list);
+        cout << getTotalLine(RTU_DATA) << endl;
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1001);
+        write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
-        cout << getTotalLine(rtu_data) << endl;
-        rtu_mapper_list[getTotalLine(rtu_data)] = add_mapper(123446, 1001);
-        write_mapper(rtu_data, rtu_mapper_list);
+        cout << getTotalLine(RTU_DATA) << endl;
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123446, 1001);
+        write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
         cout << "/////////////////////////////////////////" << endl;
-        read_mapper(rtu_data, rtu_mapper_list);
+        read_mapper(RTU_DATA, rtu_mapper_list);
         cout << "/////////////////////////////////////////" << endl;
         
         std::vector<pid_t> pids;
-        search_mapper(rtu_mapper_list, pids, getTotalLine(rtu_data), 1001);
+        search_mapper(rtu_mapper_list, pids, getTotalLine(RTU_DATA), 1001);
         for (auto it = pids.begin(); it!= pids.end(); it++) {
             cout << *it << endl;
         }
@@ -246,8 +246,8 @@ int main(int argc, char *argv[]) {
         // mapper_vector.push_back(add_mapper(123447, 1003));
         // mapper_vector.push_back(add_mapper(123448, 1004));
 
-        // writeMapper(rtu_data, mapper_vector);
-        // readMapper(rtu_data, mapper_vector);
+        // writeMapper(RTU_DATA, mapper_vector);
+        // readMapper(RTU_DATA, mapper_vector);
         // print_vector(mapper_vector);
 
         //////////////////////////////////////////////////////////////
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
         //////////////////////////////////////////////////////////////
         string strAddr = find_rtu_addr(res.siteCode);
         cout << strAddr << endl;
-        if (strAddr == not_found) {
+        if (strAddr == NOT_FOUND) {
             strAddr = "0";
         }
         
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
         //////////////////////////////////////////////////////////////
         // message queue 송수신 확인
         Mq mq;
-        mq.open(rtu_mq_name, getpid());
+        mq.open(RTU_MQ_NAME, getpid());
 
         cout << mq.send(sendbuf, sizeof(res)) << endl;
 
@@ -507,13 +507,13 @@ void sigchld_handler(int signo) {
         );
 
         string file = "/dev/mqueue/rtu.";
-        read_mapper(rtu_data, rtu_mapper_list);
-        core::common::MAPPER cmd_mapper_list[max_pool] = {0, };
-        read_mapper(client_data, cmd_mapper_list);
+        read_mapper(RTU_DATA, rtu_mapper_list);
+        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+        read_mapper(CLIENT_DATA, cmd_mapper_list);
 
-        if (getTotalLine(rtu_data) > 0) {
-            if (delete_mapper(rtu_mapper_list, getTotalLine(rtu_data), spid)) {
-                write_mapper(rtu_data, rtu_mapper_list);
+        if (getTotalLine(RTU_DATA) > 0) {
+            if (delete_mapper(rtu_mapper_list, getTotalLine(RTU_DATA), spid)) {
+                write_mapper(RTU_DATA, rtu_mapper_list);
                 print_mapper(rtu_mapper_list);
 
                 file = "/dev/mqueue/rtu.";
@@ -521,9 +521,9 @@ void sigchld_handler(int signo) {
                 unlink(file.c_str());
             }
         }
-        if (getTotalLine(client_data) > 0) {
-            if (delete_mapper(cmd_mapper_list, getTotalLine(client_data), spid)) {
-                write_mapper(client_data, cmd_mapper_list);
+        if (getTotalLine(CLIENT_DATA) > 0) {
+            if (delete_mapper(cmd_mapper_list, getTotalLine(CLIENT_DATA), spid)) {
+                write_mapper(CLIENT_DATA, cmd_mapper_list);
                 print_mapper(cmd_mapper_list);
 
                 file = "/dev/mqueue/client.";

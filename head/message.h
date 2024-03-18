@@ -59,19 +59,11 @@ namespace core {
         };
 
         class Result {
-        protected:
+        private:
             char result;
         public:
-            virtual char getResult();
-            virtual void setResult(char);
-        };
-
-        class CommandResult : public Result {
-        
-        };
-
-        class ActionResult : public Result {
-
+            char getResult();
+            void setResult(char);
         };
 
         class InitReq {
@@ -177,7 +169,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            CommandResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };
@@ -241,7 +233,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            CommandResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };
@@ -274,7 +266,7 @@ namespace core {
             unsigned short length;
             Action action;
             SiteCode siteCode;
-            ActionResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };

@@ -38,7 +38,7 @@ namespace core {
         std::string find_rtu_addr(SiteCode scode);
 
     private:
-        core::common::MAPPER mapper_list[max_pool] = {0, };
+        core::common::MAPPER mapper_list[MAX_POOL] = {0, };
         
     };
 }

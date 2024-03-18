@@ -15,8 +15,8 @@ namespace core {
     namespace server {
         class ControlServerApplication {
         protected:
-            const int max_pool = 50;
-            const int listen_backlog = 5;
+            const int MAX_POOL = 50;
+            const int LISTEN_BACKLOG = 5;
             std::vector<pid_t> connected;
 
             void sigint_handler(int signo);

@@ -43,18 +43,19 @@ typedef u_char DATA;
 #define STATUS_CONNECTED (DATA)0x01
 #define STATUS_DISCONNECTED (DATA)0x02
 
-const std::string rtu_mq_name = "/rtu.";
-const std::string server_mq_name = "/server.";
-const std::string client_mq_name = "/client.";
+const std::string RTU_MQ_NAME = "/rtu.";
+const std::string CLIENT_MQ_NAME = "/client.";
 
 const bool test = false;
-const int max_pool = 255;
-const int listen_backlog = 5;
-const u_int waiting_sec = 60;
+const int MAX_POOL = 255;
+const int LISTEN_BACKLOG = 5;
+const u_int WAITING_SEC = 60;
+const long MQ_MAXMSG = 2048;
+const long MQ_MSGSIZE = 2048;
 
-const std::string not_found = "NONE";
-const std::string rtu_data = "./data/rtu.data";
-const std::string client_data = "./data/cmd.data";
+const std::string NOT_FOUND = "NONE";
+const std::string RTU_DATA = "./data/rtu.data";
+const std::string CLIENT_DATA = "./data/cmd.data";
 
 namespace core {
     namespace common {
@@ -68,7 +69,7 @@ namespace core {
             }
         } MAPPER;
 
-        // static MAPPER mapper_list[max_pool] = {0, };
+        // static MAPPER mapper_list[MAX_POOL] = {0, };
 
         void sleep(unsigned int dwMilliSec);
         void print_hex(DATA *buf, int size);

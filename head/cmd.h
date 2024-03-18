@@ -9,9 +9,9 @@ namespace core {
     private:
         Command dcCommand;
         Command acCommand;
-        CommandResult cmdResult;
+        Result cmdResult;
         Action action;
-        ActionResult actResult;
+        Result actResult;
 
     public:
         CMDclient(ServerSocket& sock);
@@ -43,9 +43,11 @@ namespace core {
 
     protected:
         std::string find_rtu_addr(SiteCode scode);
+        bool insert_cmd_log();
+        bool update_cmd_log();
 
     private:
-        core::common::MAPPER mapper_list[max_pool] = {0, };
+        core::common::MAPPER mapper_list[MAX_POOL] = {0, };
         
     };
 }

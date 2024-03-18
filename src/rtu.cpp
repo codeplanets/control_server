@@ -7,7 +7,7 @@
 
 void rtu_timeout_handler(int sig) {
     if (sig == SIGALRM) {
-        syslog(LOG_WARNING, "Timeout %d seconds", waiting_sec);
+        syslog(LOG_WARNING, "Timeout %d seconds", WAITING_SEC);
     }
     exit(EXIT_FAILURE);
 }
@@ -38,7 +38,7 @@ namespace core {
             syslog(LOG_DEBUG, "RTUclient::reqMessage : InitRes size = %ld", sizeof(msg));
 
             string addr = find_rtu_addr(this->scode);
-            if (addr != not_found) {
+            if (addr != NOT_FOUND) {
                 this->rtuAddr.setAddr(addr, RTU_ADDRESS);
             } else {
                 syslog(LOG_WARNING, "Unknown Site Code from RTU. : %s", this->scode.getSiteCode());
@@ -92,7 +92,7 @@ namespace core {
         sigemptyset(&action.sa_mask);
         action.sa_flags = 0;
         sigaction(SIGALRM, &action, NULL);
-        alarm(waiting_sec);
+        alarm(WAITING_SEC);
     }
 
     void RTUclient::run() {
@@ -105,24 +105,48 @@ namespace core {
             common::sleep(5000);
             return;
         }
-        createMessageQueue(rtu_mq_name);
+        createMessageQueue(RTU_MQ_NAME);
         updateStatus(true);
 
         u_short addr = this->rtuAddr.getAddr();
         pid_t pid = getpid();
         if (addr > 0) {
-            read_mapper(rtu_data, mapper_list);
-            int line = getTotalLine(rtu_data);
+            read_mapper(RTU_DATA, mapper_list);
+            int line = getTotalLine(RTU_DATA);
             mapper_list[line] = add_mapper(pid, addr);
-            write_mapper(rtu_data, mapper_list);
+            write_mapper(RTU_DATA, mapper_list);
             print_mapper(mapper_list);
         }
 
         DATA sock_buf[MAX_RAW_BUFF] = {0x00,};
-        DATA mq_buf[MAX_RAW_BUFF] = {0x00,};
+        DATA mq_buf[MQ_MSGSIZE] = {0x00,};
 
         while (true) {
             common::sleep(100);
+
+            // TODO : Command Client Message Queue
+            try {
+                errno = 0;
+                int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
+                if (rcvByte > 0) {
+                    if (mq_buf[0] == STX) {
+                        if (mq_buf[1] == COMMAND_RTU) {  // Client
+                            syslog(LOG_DEBUG, "Command RTU.");
+                            common::print_hex(mq_buf, rcvByte);
+
+                            insertDatabase(true);
+                            newSock.send(mq_buf, rcvByte);
+                        } else {
+                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
+                        }
+                    }else {
+                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
+                    }
+                }
+            // sleep(1);
+            } catch (SocketException& se) {
+                syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
+            }
 
             try {
                 errno = 0;
@@ -144,7 +168,7 @@ namespace core {
                 if (sock_buf[0] == STX) {
                     if (sock_buf[1] == INIT_REQ) {  // RTUs
                         syslog(LOG_DEBUG, "RTU Init Request");
-                        alarm(waiting_sec);
+                        alarm(WAITING_SEC);
                         InitReq msg;
                         memcpy((void*)&msg, sock_buf, sizeof(msg));
                         if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
@@ -162,7 +186,7 @@ namespace core {
 
                     } else if (sock_buf[1] == HEART_BEAT) {  // RTU
                         syslog(LOG_DEBUG, "Heartbeat.");
-                        alarm(waiting_sec);
+                        alarm(WAITING_SEC);
                         HeartBeat msg;
                         memcpy((void*)&msg, sock_buf, sizeof(msg));
                         if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
@@ -182,24 +206,41 @@ namespace core {
                             syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
                         }
                         msg.print();
+                        common::print_hex(sock_buf, sizeof(msg));
 
                         // TODO : Client MQ 에 데이터를 전송
                         Mq cmd_mq;
                         pid_t pid = 0;
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
-                        read_mapper(client_data, mapper_list);
-                        int line = getTotalLine(client_data);
-                        search_mapper(mapper_list, pids, line, msg.toAddr.getAddr());
-                        for (auto it = pids.begin(); it!= pids.end(); it++) {
-                            cout << *it << endl;
-                            pid = *it;
-                            if (pid != 0) {
-                                cmd_mq.open(client_mq_name, pid);
-                                cmd_mq.send(sock_buf, sizeof(msg));
-                                cmd_mq.close();
+                        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        read_mapper(CLIENT_DATA, cmd_mapper_list);
+                        int line = getTotalLine(CLIENT_DATA);
+                        core::common::MAPPER* map;
+                        for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
+                            if (map->pid != 0) {
+                                if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
+                                    syslog(LOG_DEBUG, "Send Command RTU Ack to MQ. : %d", map->pid);
+                                    cmd_mq.send(sock_buf, sizeof(msg));
+                                    cmd_mq.close();
+                                } else {
+                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                                }
                             }
                         }
+                        // core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        // read_mapper(CLIENT_DATA, cmd_mapper_list);
+                        // int line = getTotalLine(CLIENT_DATA);
+                        // search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
+                        // for (auto it = pids.begin(); it!= pids.end(); it++) {
+                        //     cout << *it << endl;
+                        //     pid = *it;
+                        //     if (pid != 0) {
+                        //         cmd_mq.open(CLIENT_MQ_NAME, pid);
+                        //         cmd_mq.send(sock_buf, sizeof(msg));
+                        //         cmd_mq.close();
+                        //     }
+                        // }
                         // TODO : updateDatabase();
 
                     } else {
@@ -212,28 +253,6 @@ namespace core {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             }
 
-            // TODO : Command Client Message Queue
-            try {
-                errno = 0;
-                if (mq.recv(mq_buf, sizeof(mq_buf))) {
-                    if (mq_buf[0] == STX) {
-                        if (mq_buf[1] == COMMAND_RTU) {  // Client
-                            syslog(LOG_DEBUG, "Command RTU.");
-
-                            insertDatabase(true);
-                            newSock.send(mq_buf, sizeof(mq_buf));
-                        } else {
-                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
-                        }
-                    }else {
-                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
-                    }
-                }
-            // sleep(1);
-            } catch (SocketException& se) {
-                syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
-            }
-
         }
     }
     
@@ -242,7 +261,7 @@ namespace core {
     */
     bool RTUclient::isSiteCodeAvailable() {
         string siteCode = find_rtu_addr(this->scode);
-        if ( siteCode == not_found) {
+        if ( siteCode == NOT_FOUND) {
             return false;
         }
         syslog(LOG_DEBUG, "Site Code is available. : %s", siteCode.c_str());
@@ -257,7 +276,7 @@ namespace core {
     }
 
     void RTUclient::print_mapper(core::common::MAPPER* mapper) {
-        for (int i = 0; i < max_pool; i++) {
+        for (int i = 0; i < MAX_POOL; i++) {
             if (mapper[i].pid != 0) {
                 syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
             }
@@ -300,7 +319,7 @@ namespace core {
 
     void RTUclient::write_mapper(std::string filename, core::common::MAPPER* mapper) {
         FILE * f = fopen(filename.c_str(), "a");
-        for (int i = 0; i < max_pool; i++) {
+        for (int i = 0; i < MAX_POOL; i++) {
             if (mapper[i].pid != 0) {
                 fprintf(f, "%d %hd\n", mapper[i].pid, mapper[i].addr);
             }
@@ -310,10 +329,10 @@ namespace core {
 
     void RTUclient::read_mapper(std::string filename, core::common::MAPPER* mapper) {
         FILE * f = fopen(filename.c_str(), "r");
-        core::common::MAPPER compare;
-        for (int i = 0; i < max_pool; i++) {
-            // fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
-            fscanf(f, "%d %hd", &compare.pid, &compare.addr);
+        // core::common::MAPPER compare;
+        for (int i = 0; i < MAX_POOL; i++) {
+            fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
+            // fscanf(f, "%d %hd", &compare.pid, &compare.addr);
             
         }
         fclose(f);
@@ -334,7 +353,7 @@ namespace core {
     }
 
     std::string RTUclient::find_rtu_addr(SiteCode scode) {
-        string addr = not_found;
+        string addr = NOT_FOUND;
         Database db;
         ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
         if (ecode!= EC_SUCCESS) {

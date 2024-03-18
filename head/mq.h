@@ -26,7 +26,7 @@ namespace core {
             void close(void);
             
             bool send(DATA*, size_t len);
-            bool recv(DATA*, size_t len);
+            int recv(DATA*, size_t len);
         };
     }
 }
