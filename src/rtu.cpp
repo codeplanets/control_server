@@ -24,20 +24,18 @@ namespace core {
     }
 
     void RTUclient::init(InitReq &msg) {
-        cout << "RTUclient::init" << endl;
-
         this->rtuAddr = msg.fromAddr;
         this->serverAddr = msg.toAddr;
         this->scode = msg.siteCode;
 
-        cout << this->rtuAddr.getAddr() << " " << this->serverAddr.getAddr() << " " << this->scode.getSiteCode() << endl;
+        syslog(LOG_DEBUG, "RTUclient::init : RTU-0x%02X Server-0x%02X Sitecode-%s", this->rtuAddr.getAddr(), this->serverAddr.getAddr(), this->scode.getSiteCode());
     }
 
     int RTUclient::reqMessage(DATA* buf, DATA cmd) {
         // INIT_RES, HEART_BEAT_ACK, COMMAND_RTU
         if (cmd == INIT_RES) {
             InitRes msg;
-            cout << "InitRes size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "RTUclient::reqMessage : InitRes size = %ld", sizeof(msg));
 
             string addr = find_rtu_addr(this->scode);
             if (addr != not_found) {
@@ -61,7 +59,7 @@ namespace core {
 
         } else if (cmd == HEART_BEAT_ACK) {
             HeartBeatAck msg;
-            cout << "Heartbeat Ack size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "RTUclient::reqMessage : Heartbeat Ack size = %ld", sizeof(msg));
             
             msg.fromAddr = this->rtuAddr;
             msg.toAddr = this->serverAddr;
@@ -75,7 +73,7 @@ namespace core {
 
         } else if (cmd == COMMAND_RTU) {
             CommandRtu msg;
-            cout << "Command RTU size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "RTUclient::reqMessage : Command RTU size = %ld", sizeof(msg));
 
             msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
 
@@ -101,18 +99,12 @@ namespace core {
         
         DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
         int len = reqMessage(sendbuf, INIT_RES);
+        newSock.send(sendbuf, len);
 
         if (isSiteCodeAvailable() == false) {
-            // TODO : set rtu address 0x0000
-
-            newSock.send(sendbuf, len);
-
             common::sleep(5000);
             return;
         }
-        len = reqMessage(sendbuf, INIT_RES);
-        newSock.send(sendbuf, len);
-
         createMessageQueue(rtu_mq_name);
         updateStatus(true);
 
@@ -120,8 +112,8 @@ namespace core {
         pid_t pid = getpid();
         if (addr > 0) {
             read_mapper(rtu_data, mapper_list);
-            cout << getTotalLine(rtu_data) << endl;
-            mapper_list[getTotalLine(rtu_data)] = add_mapper(pid, addr);
+            int line = getTotalLine(rtu_data);
+            mapper_list[line] = add_mapper(pid, addr);
             write_mapper(rtu_data, mapper_list);
             print_mapper(mapper_list);
         }
@@ -140,7 +132,7 @@ namespace core {
                         common::sleep(100);
                         continue;
                     } else {
-                        cout << errno << ":" << strerror(errno) << endl;
+                        syslog(LOG_ERR, "RTUclient::run : %s", strerror(errno));
                         break;
                     }
                 } else if (len == 0) {
@@ -197,14 +189,16 @@ namespace core {
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
                         read_mapper(client_data, mapper_list);
-                        cout << getTotalLine(client_data) << endl;
-                        search_mapper(mapper_list, pids, getTotalLine(client_data), msg.toAddr.getAddr());
+                        int line = getTotalLine(client_data);
+                        search_mapper(mapper_list, pids, line, msg.toAddr.getAddr());
                         for (auto it = pids.begin(); it!= pids.end(); it++) {
                             cout << *it << endl;
                             pid = *it;
-                            cmd_mq.open(client_mq_name, pid);
-                            cout << pid << " < " << cmd_mq.send(sock_buf, sizeof(msg)) << endl;
-                            cmd_mq.close();
+                            if (pid != 0) {
+                                cmd_mq.open(client_mq_name, pid);
+                                cmd_mq.send(sock_buf, sizeof(msg));
+                                cmd_mq.close();
+                            }
                         }
                         // TODO : updateDatabase();
 
@@ -224,14 +218,15 @@ namespace core {
                 if (mq.recv(mq_buf, sizeof(mq_buf))) {
                     if (mq_buf[0] == STX) {
                         if (mq_buf[1] == COMMAND_RTU) {  // Client
-                            cout << "[" << getpid() << "] : " << "Command Client." << endl;
+                            syslog(LOG_DEBUG, "Command RTU.");
+
                             insertDatabase(true);
                             newSock.send(mq_buf, sizeof(mq_buf));
                         } else {
-                            cout << "[" << getpid() << "] : " << "Unknown message type from mq." << hex << mq_buf[1] << endl;
+                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                         }
                     }else {
-                        cout << "[" << getpid() << "] : " << "Error Start of Text from mq." << hex << mq_buf[0] << endl;
+                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                     }
                 }
             // sleep(1);
@@ -250,7 +245,7 @@ namespace core {
         if ( siteCode == not_found) {
             return false;
         }
-        cout << "contains this : " << siteCode << endl;
+        syslog(LOG_DEBUG, "Site Code is available. : %s", siteCode.c_str());
         return true;
     }
 
@@ -264,7 +259,7 @@ namespace core {
     void RTUclient::print_mapper(core::common::MAPPER* mapper) {
         for (int i = 0; i < max_pool; i++) {
             if (mapper[i].pid != 0) {
-                cout << mapper[i].pid << " " << mapper[i].addr << endl;
+                syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
             }
         }
     }
@@ -273,9 +268,9 @@ namespace core {
         core::common::MAPPER* map;
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
-                cout << map->pid << " " << map->addr << endl;
+                syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
                 pid = map->pid;
-                break;
             }
         }
     }
@@ -284,7 +279,8 @@ namespace core {
         core::common::MAPPER* map;
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
-                cout << map->pid << " " << map->addr << endl;
+                syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
                 pids.push_back(map->pid);
             }
         }
@@ -350,7 +346,7 @@ namespace core {
         query += " where SiteCode = '";
         query += siteCode;
         query += "';";
-        cout << query << endl;
+        syslog(LOG_DEBUG, "Query : %s", query.c_str());
         delete[] siteCode;
 
         // Query Data
@@ -370,6 +366,7 @@ namespace core {
                 addr = sqlrow[2];
             }
         } catch (exception& e) {
+            syslog(LOG_ERR, "DB Fetch Error!");
             cout << e.what() << endl;
         }
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");

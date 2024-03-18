@@ -28,20 +28,20 @@ namespace core {
         this->cmdAddr.setAddr(addr, CLIENT_ADDRESS);
         this->m_addr = addr;
 
-        cout << "CMDclient::init : " << this->serverAddr.getAddr() << " " << this->cmdAddr.getAddr() << endl;
+        syslog(LOG_DEBUG, "CMDclient::init : Server-0x%02X Client-0x%02X", this->serverAddr.getAddr(), this->cmdAddr.getAddr());
     }
 
     void CMDclient::setSiteCode(char* scode) {
         this->scode.setSiteCode(scode);
 
-        cout << "CMDclient::setSiteCode : " << this->scode.getSiteCode() << endl;
+        syslog(LOG_DEBUG, "CMDclient::setSiteCode : %s", this->scode.getSiteCode());
     }
 
     int CMDclient::reqMessage(DATA* buf, DATA cmd) {
         // CLIENT_INIT_RES, COMMAND_RTU, COMMAND_CLIENT_ACK
         if (cmd == CLIENT_INIT_RES) {
             ClientInitRes msg;
-            cout << "ClientInitRes size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : ClientInitRes size = %ld", sizeof(msg));
 
             // Packetizer
             msg.fromAddr = this->serverAddr;
@@ -56,7 +56,7 @@ namespace core {
 
         } else if (cmd == COMMAND_RTU) {
             CommandRtu msg;
-            cout << "CommandRtu size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : CommandRtu size = %ld", sizeof(msg));
             
             // Packetizer
             msg.fromAddr = this->rtuAddr;
@@ -73,7 +73,7 @@ namespace core {
 
         } else if (cmd == COMMAND_CLIENT_ACK) {
             CommandClientAck msg;
-            cout << "CommandClientAck size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : CommandClientAck size = %ld", sizeof(msg));
 
             // Packetizer
             msg.fromAddr = this->rtuAddr;
@@ -91,7 +91,7 @@ namespace core {
 
         } else if (cmd == SETUP_INFO_ACK) {
             SetupInfoAck msg;
-            cout << "SetupInfoAck size = " << sizeof(msg) << endl;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : SetupInfoAck size = %ld", sizeof(msg));
             
             // Packetizer
             msg.fromAddr = this->rtuAddr;
@@ -107,11 +107,24 @@ namespace core {
             return sizeof(msg);
 
         } else if (cmd == RTU_STATUS_RES) {
-            RtuStatusRes msg;
-            cout << "RtuStatusRes size = " << sizeof(msg) << endl;
-            memcpy(buf, (char*)&msg, sizeof(msg));
-            common::print_hex(buf, sizeof(msg));
-            return sizeof(msg);
+            RtuStatusResHead msgHead;
+            RtuStatusResTail msgTail;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : RtuStatusResHead size = %ld", sizeof(msgHead));
+
+            // Packetizer
+            msgHead.fromAddr = this->rtuAddr;
+            // msg.toAddr = this->cmdAddr;
+            msgHead.toAddr.setAddr(0x0FFF, CLIENT_ADDRESS);
+            // set RtuStatus rtuStatus[];
+            // msgHead.rtuStatus[i] = this->rtuStatus[i];
+            msgHead.print();
+
+            msgTail.crc8.setCRC8(common::calcCRC((DATA*)&msgHead, sizeof(msgHead)));
+
+            memcpy(buf, (char*)&msgHead, sizeof(msgHead));
+            memcpy(buf+sizeof(msgHead), (char*)&msgTail, sizeof(msgTail));
+            common::print_hex(buf, sizeof(msgHead) + sizeof(msgTail));
+            return sizeof(msgHead) + sizeof(msgTail);
         }
 
         return 0;
@@ -139,8 +152,8 @@ namespace core {
         pid_t pid = getpid();
         if (addr > 0) {
             read_mapper(client_data, mapper_list);
-            cout << getTotalLine(client_data) << endl;
-            mapper_list[getTotalLine(client_data)] = add_mapper(pid, addr);
+            int line = getTotalLine(client_data);
+            mapper_list[line] = add_mapper(pid, addr);
             write_mapper(client_data, mapper_list);
             print_mapper(mapper_list);
         }
@@ -159,7 +172,7 @@ namespace core {
                         common::sleep(100);
                         continue;
                     } else {
-                        cout << errno << ":" << strerror(errno) << endl;
+                        syslog(LOG_ERR, "CMDclient::run : %s", strerror(errno));
                         break;
                     }
                 } else if (len == 0) {
@@ -200,24 +213,21 @@ namespace core {
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
                         read_mapper(rtu_data, mapper_list);
-                        cout << getTotalLine(rtu_data) << endl;
-                        search_mapper(mapper_list, pids, getTotalLine(rtu_data), this->rtuAddr.getAddr());
+                        int line = getTotalLine(rtu_data);
+                        search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
                         for (auto it = pids.begin(); it!= pids.end(); it++) {
                             cout << *it << endl;
                             pid = *it;
-                            rtu_mq.open(rtu_mq_name, pid);
-                            cout << pid << " < " << rtu_mq.send(mq_buf, len) << endl;
-                            rtu_mq.close();
+                            if (pid != 0) {
+                                rtu_mq.open(rtu_mq_name, pid);
+                                rtu_mq.send(sock_buf, len);
+                                rtu_mq.close();
+                            }
                         }
 
                     } else if (sock_buf[1] == SETUP_INFO) {
                         syslog(LOG_DEBUG, "Setup Info.");
                         alarm(waiting_sec);
-                        
-                        DATA result = ACTION_RESULT_OK;;
-                        // ret = updateDatabase();
-                        // if (ret) result = ACTION_RESULT_OK
-                        // else result = ACTION_RESULT_FAIL
                         
                         SetupInfo msg;
                         memcpy((void*)&msg, sock_buf, len);
@@ -226,21 +236,76 @@ namespace core {
                         }
                         msg.print();
                         
-                        this->serverAddr = msg.fromAddr;
-                        this->rtuAddr = msg.toAddr;
+                        // 값들을 저장
+                        DATA result = ACTION_RESULT_OK;
+                        bool shutdown = false;
+                        this->serverAddr = msg.fromAddr;    // * 확인 *
+                        this->rtuAddr = msg.toAddr;         // * 확인 *
                         this->action = msg.action;
                         this->scode = msg.siteCode;
+
+                        // Action I, U, D
+                        char action = this->action.getAction();
+                        if (action != 'Q') {
+                            syslog(LOG_DEBUG, "Setup Info Action %c!", this->action.getAction());
+                            if (updateDatabase(true)) {
+                                result = ACTION_RESULT_OK;
+                            } else {
+                                result = ACTION_RESULT_FAIL;
+                            }
+                        } else {
+                            syslog(LOG_INFO, "Setup Info Action Q!");
+                            shutdown = true;
+                            result = ACTION_RESULT_OK;
+                        }
+                        
                         this->actResult.setResult(result);
                         
                         len = reqMessage(sendbuf, SETUP_INFO_ACK);
                         newSock.send(sock_buf, len);
 
+                        if (shutdown) {
+                            syslog(LOG_INFO, "Server Shutdown.");
+                            break;
+                            // TODO: kill process
+                        }
+
                     } else if (sock_buf[1] == RTU_STATUS_REQ) {
                         syslog(LOG_DEBUG, "RTU Status Req.");
-                        // TODO : handle RTU Status
-                        len = reqMessage(sendbuf, RTU_STATUS_RES);
-                        newSock.send(sock_buf, len);
+                        alarm(waiting_sec);
 
+                        RtuStatusReq msg;
+                        memcpy((void*)&msg, sock_buf, len);
+                        if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                        }
+                        msg.print();
+
+                        this->serverAddr = msg.fromAddr;    // * 확인 *
+                        this->cmdAddr = msg.toAddr;         // * 확인 *
+
+                        // TODO : 모든 Address의 Client MQ에 send 해야함.
+                        len = reqMessage(sendbuf, RTU_STATUS_RES);
+                        Mq cmd_mq;
+                        pid_t pid = 0;
+                        std::vector<pid_t> pids;
+                        // data에서 pid를 read.
+                        core::common::MAPPER cmd_mapper_list[max_pool] = {0, };
+                        read_mapper(client_data, cmd_mapper_list);
+                        int line = getTotalLine(client_data);
+                        core::common::MAPPER* map;
+                        for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
+                            if (map->pid != 0) {
+                                if (cmd_mq.open(client_mq_name, pid)) {
+                                    syslog(LOG_DEBUG, "Send RTU Status Res to MQ. : %d", map->pid);
+                                    cmd_mq.send(sock_buf, sizeof(msg));
+                                    cmd_mq.close();
+                                } else {
+                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                                }
+                            }
+                        }
+                        
                     } else {
                         syslog(LOG_WARNING, "Unknown message type from socket.");
                     }
@@ -257,15 +322,18 @@ namespace core {
                 if (mq.recv(mq_buf, sizeof(mq_buf))) {
                     if (mq_buf[0] == STX) {
                         if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
-                            cout << "Command RTU Ack." << endl;
+                            syslog(LOG_DEBUG, "Command RTU Ack.");
 
                             updateDatabase(true);
                             newSock.send(mq_buf, sizeof(mq_buf));
+                        } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
+                            syslog(LOG_DEBUG, "RTU Status Res.");
+                            newSock.send(mq_buf, sizeof(mq_buf));
                         } else {
-                            cout << "[" << getpid() << "] : " << "Unknown message type from mq." << hex << mq_buf[1] << endl;
+                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                         }
                     }else {
-                        cout << "[" << getpid() << "] : " << "Error Start of Text from mq." << hex << mq_buf[0] << endl;
+                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                     }
                 }
             // sleep(1);
@@ -284,7 +352,7 @@ namespace core {
         if ( siteCode == not_found) {
             return false;
         }
-        cout << "contains this : " << siteCode << endl;
+        syslog(LOG_DEBUG, "Site Code is available. : %s", siteCode.c_str());
         return true;
     }
 
@@ -298,7 +366,7 @@ namespace core {
     void CMDclient::print_mapper(core::common::MAPPER* mapper) {
         for (int i = 0; i < max_pool; i++) {
             if (mapper[i].pid != 0) {
-                cout << mapper[i].pid << " " << mapper[i].addr << endl;
+                syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
             }
         }
     }
@@ -307,9 +375,9 @@ namespace core {
         core::common::MAPPER* map;
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
-                cout << map->pid << " " << map->addr << endl;
+                syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
                 pid = map->pid;
-                break;
             }
         }
     }
@@ -318,7 +386,8 @@ namespace core {
         core::common::MAPPER* map;
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
-                cout << map->pid << " " << map->addr << endl;
+                syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
                 pids.push_back(map->pid);
             }
         }
@@ -380,7 +449,7 @@ namespace core {
         query += " where SiteCode = '";
         query += siteCode;
         query += "';";
-        cout << query << endl;
+        syslog(LOG_DEBUG, "Query : %s", query.c_str());
         delete[] siteCode;
 
         // Query Data
@@ -400,6 +469,7 @@ namespace core {
                 addr = sqlrow[2];
             }
         } catch (exception& e) {
+            syslog(LOG_ERR, "DB Fetch Error!");
             cout << e.what() << endl;
         }
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");

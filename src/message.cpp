@@ -84,14 +84,13 @@ namespace core {
         InitReq::~InitReq() {}
         void InitReq::print() {
             std::cout << "InitReq: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class InitRes
@@ -99,15 +98,15 @@ namespace core {
         InitRes::~InitRes() {}
         void InitRes::print() {
             std::cout << "InitRes: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
-            printf("rtu: 0x%04x \n", this->rtuAddr.getAddr());
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("rtu: 0x%04X \n", this->rtuAddr.getAddr());
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class HeartBeat
@@ -115,13 +114,13 @@ namespace core {
         HeartBeat::~HeartBeat() {}
         void HeartBeat::print() {
             std::cout << "HeartBeat: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class HeartBeatAck
@@ -129,13 +128,13 @@ namespace core {
         HeartBeatAck::~HeartBeatAck() {}
         void HeartBeatAck::print() {
             std::cout << "HeartBeatAck: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class CommandRtu
@@ -143,16 +142,16 @@ namespace core {
         CommandRtu::~CommandRtu() {}
         void CommandRtu::print() {
             std::cout << "CommandRtu: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
             std::cout << "dc : " << this->dcCommand.getCommand() << std::endl;
             std::cout << "ac : " << this->acCommand.getCommand() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class CommandRtuAck
@@ -160,17 +159,17 @@ namespace core {
         CommandRtuAck::~CommandRtuAck() {}
         void CommandRtuAck::print() {
             std::cout << "CommandRtuAck: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
             std::cout << "dc : " << this->dcCommand.getCommand() << std::endl;
             std::cout << "ac : " << this->acCommand.getCommand() << std::endl;
             std::cout << "rst: " << this->result.getResult() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class ClientInitReq
@@ -178,13 +177,13 @@ namespace core {
         ClientInitReq::~ClientInitReq() {}
         void ClientInitReq::print() {
             std::cout << "ClientInitReq: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class ClientInitRes        
@@ -192,14 +191,14 @@ namespace core {
         ClientInitRes::~ClientInitRes() {}
         void ClientInitRes::print() {
             std::cout << "ClientInitRes: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
-            printf("clt: 0x%04x \n", this->clientAddr.getAddr());
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("clt: 0x%04X \n", this->clientAddr.getAddr());
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class CommandClient        
@@ -207,16 +206,16 @@ namespace core {
         CommandClient::~CommandClient() {}
         void CommandClient::print() {
             std::cout << "CommandClient: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
             std::cout << "dc : " << this->dcCommand.getCommand() << std::endl;
             std::cout << "ac : " << this->acCommand.getCommand() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class CommandClientAck
@@ -224,17 +223,17 @@ namespace core {
         CommandClientAck::~CommandClientAck() {}
         void CommandClientAck::print() {
             std::cout << "CommandClientAck: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
             std::cout << "dc : " << this->dcCommand.getCommand() << std::endl;
             std::cout << "ac : " << this->acCommand.getCommand() << std::endl;
             std::cout << "rst: " << this->result.getResult() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class SetupInfo
@@ -242,15 +241,15 @@ namespace core {
         SetupInfo::~SetupInfo() {}
         void SetupInfo::print() {
             std::cout << "SetupInfo: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "act: " << this->action.getAction() << std::endl;
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class SetupInfoAck
@@ -258,16 +257,16 @@ namespace core {
         SetupInfoAck::~SetupInfoAck() {}
         void SetupInfoAck::print() {
             std::cout << "SetupInfoAck: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "act: " << this->action.getAction() << std::endl;
             std::cout << "scd: " << this->siteCode.getSiteCode() << std::endl;
             std::cout << "rst: " << this->result.getResult() << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class RtuStatusReq
@@ -275,31 +274,38 @@ namespace core {
         RtuStatusReq::~RtuStatusReq() {}
         void RtuStatusReq::print() {
             std::cout << "RtuStatusReq: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
         // Class RtuStatus
         RtuStatus::RtuStatus(SiteCode scd, Status stat) : siteCode(scd), status(stat) {}
         //////////////////////////////////////////////
-        // Class RtuStatusRes
-        RtuStatusRes::RtuStatusRes() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0), etx(ETX) {}
-        RtuStatusRes::~RtuStatusRes() {}
-        void RtuStatusRes::print() {
-            std::cout << "RtuStatusRes: " << std::endl;
-            printf("stx: 0x%02x \n", this->stx);
-            printf("cmd: 0x%02x \n", this->cmd);
-            printf("frm: 0x%04x \n", this->fromAddr.getAddr());
-            printf("to : 0x%04x \n", this->toAddr.getAddr());
+        // Class RtuStatusResHead
+        RtuStatusResHead::RtuStatusResHead() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0) {}
+        RtuStatusResHead::~RtuStatusResHead() {}
+        void RtuStatusResHead::print() {
+            std::cout << "RtuStatusResHead: " << std::endl;
+            printf("stx: 0x%02X \n", this->stx);
+            printf("cmd: 0x%02X \n", this->cmd);
+            printf("frm: 0x%04X \n", this->fromAddr.getAddr());
+            printf("to : 0x%04X \n", this->toAddr.getAddr());
             printf("len: %u \n", this->length);
             std::cout << "cnt: " << this->count << std::endl;
-            printf("crc: 0x%02x \n", this->crc8.getCRC8());
-            printf("etx: 0x%02x \n", this->etx);
+        }
+        //////////////////////////////////////////////
+        // Class RtuStatusResTail
+        RtuStatusResTail::RtuStatusResTail() : etx(ETX) {}
+        RtuStatusResTail::~RtuStatusResTail() {}
+        void RtuStatusResTail::print() {
+            std::cout << "RtuStatusResTail: " << std::endl;
+            printf("crc: 0x%02X \n", this->crc8.getCRC8());
+            printf("etx: 0x%02X \n", this->etx);
         }
         //////////////////////////////////////////////
     }

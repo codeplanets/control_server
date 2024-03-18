@@ -48,7 +48,8 @@ std::string find_rtu_addr(SiteCode scode) {
     query += " where SiteCode = '";
     query += siteCode;
     query += "';";
-    cout << query << endl;
+    syslog(LOG_DEBUG, "Query : %s", query.c_str());
+    delete[] siteCode;
 
     // Query Data
     MYSQL_ROW sqlrow;
@@ -67,6 +68,7 @@ std::string find_rtu_addr(SiteCode scode) {
             addr = sqlrow[2];
         }
     } catch (exception& e) {
+        syslog(LOG_ERR, "DB Fetch Error!");
         cout << e.what() << endl;
     }
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
@@ -105,7 +107,7 @@ core::common::MAPPER add_mapper(int pid, u_short addr) {
 void print_mapper(core::common::MAPPER* mapper) {
     for (int i = 0; i < max_pool; i++) {
         if (mapper[i].pid != 0) {
-            cout << mapper[i].pid << " " << mapper[i].addr << endl;
+            syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
         }
     }
 }
@@ -114,9 +116,9 @@ void search_mapper(core::common::MAPPER* mapper, pid_t &pid, int idx, u_short ad
     core::common::MAPPER* map;
     for (map = mapper; map < mapper + idx; map++) {
         if (map->addr == addr) {
-            cout << map->pid << " " << map->addr << endl;
+            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
             pid = map->pid;
-            break;
         }
     }
 }
@@ -125,7 +127,8 @@ void search_mapper(core::common::MAPPER* mapper, std::vector<pid_t> &pids, int i
     core::common::MAPPER* map;
     for (map = mapper; map < mapper + idx; map++) {
         if (map->addr == addr) {
-            cout << map->pid << " " << map->addr << endl;
+            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
             pids.push_back(map->pid);
         }
     }
@@ -144,104 +147,22 @@ bool delete_mapper(core::common::MAPPER* mapper, int idx, int pid) {
 }
 void write_mapper(std::string filename, core::common::MAPPER* mapper) {
     FILE * f = fopen(filename.c_str(), "w");
-    // cout << flock(fileno(f), LOCK_SH) << endl;
     for (int i = 0; i < max_pool; i++) {
         if (mapper[i].pid != 0) {
             fprintf(f, "%d %hd\n", mapper[i].pid, mapper[i].addr);
         }
     }
-    // cout << flock(fileno(f), LOCK_UN) << endl;
     fclose(f);
 }
-
-// static std::set<core::common::MAPPER> mySet;
 
 void read_mapper(std::string filename, core::common::MAPPER* mapper) {
     FILE * f = fopen(filename.c_str(), "r");
 
     for (int i = 0; i < max_pool; i++) {
-        // core::common::MAPPER map;
-        // fscanf(f, "%d %hd", &map.pid, &map.addr);
         fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
-        // mySet.insert(map);
-        // mySet.insert(mapper[i]);
     }
     fclose(f);
-
-    // int i = 0;
-    // for (auto it = mySet.begin(); it != mySet.end(); it++, i++) {
-        // cout << it->pid << " " << it->addr << endl;
-        // mapper[i].pid = it->pid;
-        // mapper[i].addr = it->addr;
-    // }
 }
-
-// void writeMapper(std::string filename, core::common::MAPPER* mapper) {
-//     FILE * f = fopen(filename.c_str(), "ab");
-//     if (f == NULL) {
-//         syslog(LOG_ERR, "File Open Error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     fwrite(&mapper, sizeof(core::common::MAPPER), mapper.size(), f);
-//     fclose(f);
-// }
-// void readMapper(std::string filename, std::vector<core::common::MAPPER> &mapper_vector) {
-//     FILE* f = fopen(filename.c_str(), "rb");
-//     if (f == NULL) {
-//         syslog(LOG_ERR, "File Open Error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     if (filesystem::file_size(filename.c_str()) > 0) {
-//         size_t len = filesystem::file_size(filename.c_str()) / sizeof(core::common::MAPPER);
-//         cout << "read : " << filesystem::file_size(filename.c_str()) << " / " << sizeof(core::common::MAPPER) << endl;
-//         fread(&mapper_vector, sizeof(core::common::MAPPER), len, f);
-//         fclose(f);
-//     }
-// }
-// std::vector<core::common::MAPPER> mapper_vector;
-// std::vector<core::common::MAPPER> mapper_vector_read;
-// void print_vector(std::vector<core::common::MAPPER> mapper_vector) {
-//     for(std::vector<core::common::MAPPER>::iterator it = mapper_vector.begin(); it != mapper_vector.end(); it++){
-//         cout << it->pid << " " << it->addr << endl;
-//     }
-// }
-// void search_vector(std::vector<core::common::MAPPER> mapper_vector, u_short addr) {
-//     for(std::vector<core::common::MAPPER>::iterator it = mapper_vector.begin(); it != mapper_vector.end(); it++){
-//         if (it->addr == addr) {
-//             cout << it->pid << " " << it->addr << endl;
-//         }
-//     }
-// }
-// void delete_vector(std::vector<core::common::MAPPER> &mapper_vector, int pid) {
-//     for(std::vector<core::common::MAPPER>::iterator it = mapper_vector.begin(); it != mapper_vector.end(); it++){
-//         if(it->pid == pid) {
-//             it = mapper_vector.erase(it);
-//         }
-//     }
-// // }
-// void writeMapper(std::string filename, std::vector<core::common::MAPPER> &mapper_vector) {
-//     FILE * f = fopen(filename.c_str(), "ab");
-//     if (f == NULL) {
-//         syslog(LOG_ERR, "File Open Error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     cout << "write : " << mapper_vector.size() << endl;
-//     fwrite(&mapper_vector, sizeof(core::common::MAPPER), mapper_vector.size(), f);
-//     fclose(f);
-// }
-// void readMapper(std::string filename, std::vector<core::common::MAPPER> &mapper_vector) {
-//     FILE* f = fopen(filename.c_str(), "rb");
-//     if (f == NULL) {
-//         syslog(LOG_ERR, "File Open Error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     if (filesystem::file_size(filename.c_str()) > 0) {
-//         size_t len = filesystem::file_size(filename.c_str()) / sizeof(core::common::MAPPER);
-//         cout << "read : " << filesystem::file_size(filename.c_str()) << " / " << sizeof(core::common::MAPPER) << endl;
-//         fread(&mapper_vector, sizeof(core::common::MAPPER), len, f);
-//         fclose(f);
-//     }
-// }
 
 int getTotalLine(string name) {
     FILE *fp;
@@ -383,13 +304,13 @@ int main(int argc, char *argv[]) {
         // u_short num으로 형변환 
         unsigned short num = stoi(strAddr);
         // 0x0001 으로 변환됨
-        printf("hex : 0x%04x, %u \n", num, num);
+        printf("hex : 0x%04X, %u \n", num, num);
         // u_short 을 char[] 변환, endian 변환
         ch[0]=(char)(num >> 8) | RTU_ADDRESS; // | 0x10 주의
         ch[1]=(char)(num & 0x00ff);
-        printf("0x%02x, 0x%02x \n", ch[0], ch[1]);
+        printf("0x%02X, 0x%02X \n", ch[0], ch[1]);
         res.rtuAddr.setAddr(ch, sizeof(ch));
-        printf("0x%04x, %u \n", res.rtuAddr.getAddr(), res.rtuAddr.getAddr());
+        printf("0x%04X, %u \n", res.rtuAddr.getAddr(), res.rtuAddr.getAddr());
         res.crc8.setCRC8(common::calcCRC((DATA*)&res, sizeof(res)));
         memcpy(sendbuf, (char*)&res, sizeof(res));
         common::print_hex(sendbuf, sizeof(res));
@@ -435,7 +356,10 @@ int main(int argc, char *argv[]) {
                     // Generate Client Address
                     if (!cmdAddrQueue.empty()) {
                         cmdAddr = cmdAddrQueue.top();
+        syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
+
                         cout << cmdAddr << endl;
+                        syslog(LOG_DEBUG, "| 0x%02X |", cmdAddr);
                         cmdAddrQueue.pop();
                     }
 

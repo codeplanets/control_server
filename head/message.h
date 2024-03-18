@@ -304,10 +304,10 @@ namespace core {
             Status status;
         };
 
-        class RtuStatusRes {
+        class RtuStatusResHead {
         public:
-            RtuStatusRes();
-            ~RtuStatusRes();
+            RtuStatusResHead();
+            ~RtuStatusResHead();
             void print();
             
             DATA stx;
@@ -316,7 +316,15 @@ namespace core {
             Address toAddr;
             unsigned short length;
             unsigned short count;
-            std::vector<RtuStatus> rtuStatus;
+            // std::vector<RtuStatus> rtuStatus;
+            RtuStatus rtuStatus[];
+        };
+        class RtuStatusResTail {
+        public:
+            RtuStatusResTail();
+            ~RtuStatusResTail();
+            void print();
+
             CRC crc8;
             DATA etx;
         };
