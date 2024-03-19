@@ -66,6 +66,29 @@ namespace core {
             void setResult(char);
         };
 
+        class MsgHeader {
+        public:
+            MsgHeader();
+            ~MsgHeader();
+            void print();
+
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
+        };
+
+        class MsgTail {
+        public:
+            MsgTail();
+            ~MsgTail();
+            void print();
+            
+            CRC crc8;
+            DATA etx;
+        };
+
         class InitReq {
         public:
             InitReq();

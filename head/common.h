@@ -3,13 +3,13 @@
 #include <iostream>
 #include <string>
 #include <regex>
+#include <cassert>
 
 typedef int SOCKET;
 typedef u_char DATA;
 
 #define MAX_TASK_NUM	1
 #define MAX_EXTEND_NUM	1
-#define MAX_RAW_BUFF    4096
 #define BUFF_SIZE       40960
 #define STX_V       0xFA
 #define ETX_V       0xF5
@@ -46,11 +46,14 @@ typedef u_char DATA;
 const std::string RTU_MQ_NAME = "/rtu.";
 const std::string CLIENT_MQ_NAME = "/client.";
 
+const int MAX_RAW_BUFF = 4096;
+
 const bool test = false;
 const int MAX_POOL = 255;
 const int LISTEN_BACKLOG = 5;
 const u_int WAITING_SEC = 60;
-const long MQ_MAXMSG = 2048;
+const u_int CMD_WAITING_SEC = 600;
+const long MQ_MAXMSG = 10;
 const long MQ_MSGSIZE = 2048;
 
 const std::string NOT_FOUND = "NONE";
