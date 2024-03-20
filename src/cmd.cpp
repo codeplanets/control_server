@@ -190,7 +190,10 @@ namespace core {
                             this->acCommand = msg.acCommand;
                             this->cmdResult = msg.result;
 
-                            updateDatabase(true);
+                            // updateDatabase(true);
+                            setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
+                            update_cmd_log(cmdLog);
+
                             syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
                             len = reqMessage(sock_buf, COMMAND_CLIENT_ACK);
                             newSock.send(sock_buf, len);
@@ -261,35 +264,43 @@ namespace core {
                         this->dcCommand = msg.dcCommand;
                         this->acCommand = msg.acCommand;
                         
+                        setup_init_value(cmdLog);
+                        insert_cmd_log(cmdLog);
+
                         string addr = find_rtu_addr(this->scode);
                         if (addr != NOT_FOUND) {
                             this->rtuAddr.setAddr(addr, RTU_ADDRESS);
+                            // TODO : 해당 Address의 RTU MQ에 send 해야함.
+                            syslog(LOG_INFO, "SVR >> MQ : Command RTU.");
+                            sendByte = reqMessage(mq_buf, COMMAND_RTU);
+                            Mq rtu_mq;
+                            pid_t pid = 0;
+                            std::vector<pid_t> pids;
+                            // data에서 pid를 read.
+                            read_mapper(RTU_DATA, mapper_list);
+                            int line = getTotalLine(RTU_DATA);
+                            search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
+                            cout << "RTU PIDs : ";
+                            for (auto it = pids.begin(); it!= pids.end(); it++) {
+                                cout << *it << " ";
+                                pid = *it;
+                                if (pid != 0) {
+                                    rtu_mq.open(RTU_MQ_NAME, pid);
+                                    rtu_mq.send(mq_buf, sendByte);
+                                    rtu_mq.close();
+                                }
+                            }
+                            cout << endl;
+
+                            if (pid == 0) {
+                                syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
+                                setup_ack_value(cmdLog, "N", NOT_CONNECT);
+                            }
+
                         } else {
                             syslog(LOG_WARNING, "Unknown Site Code from client. : %s", this->scode.getSiteCode());
-                            this->rtuAddr.setAddr(0x0000);
+                            setup_ack_value(cmdLog, "N", SITE_NOT_FOUND);
                         }
-                        
-                        // TODO : 해당 Address의 RTU MQ에 send 해야함.
-                        syslog(LOG_INFO, "SVR >> MQ : Command RTU.");
-                        sendByte = reqMessage(mq_buf, COMMAND_RTU);
-                        Mq rtu_mq;
-                        pid_t pid = 0;
-                        std::vector<pid_t> pids;
-                        // data에서 pid를 read.
-                        read_mapper(RTU_DATA, mapper_list);
-                        int line = getTotalLine(RTU_DATA);
-                        search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
-                        cout << "RTU PIDs : ";
-                        for (auto it = pids.begin(); it!= pids.end(); it++) {
-                            cout << *it << " ";
-                            pid = *it;
-                            if (pid != 0) {
-                                rtu_mq.open(RTU_MQ_NAME, pid);
-                                rtu_mq.send(mq_buf, sendByte);
-                                rtu_mq.close();
-                            }
-                        }
-                        cout << endl;
 
                     } else if (sock_buf[1] == SETUP_INFO) {
                         syslog(LOG_INFO, "CMD >> SVR : Setup Info.");
@@ -518,25 +529,105 @@ namespace core {
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
         return addr;
     }
-    bool CMDclient::insert_cmd_log() {
+
+    bool CMDclient::setup_init_value(CmdLog &log) {
+        char YYYYMMDD[9];
+        char HHMMSS[7];
+        time_t timer = time(NULL);
+        struct tm* t = localtime(&timer);
+        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
+        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
+        log.siteCode = this->scode.getSiteCode();
+        log.date = YYYYMMDD;
+        log.time = HHMMSS;
+        log.ackResult = "N";
+        log.resultCode = NOT_ACK;
+
+        return true;
+    }
+
+    bool CMDclient::setup_ack_value(CmdLog &log, std::string result, int code) {
+        char YYYYMMDD[9];
+        char HHMMSS[7];
+        time_t timer = time(NULL);
+        struct tm* t = localtime(&timer);
+        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
+        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
+        log.ack = true;
+        log.ackDate = YYYYMMDD;
+        log.ackTime = HHMMSS;
+        log.ackResult = result;
+        log.resultCode = code;
+
+        return true;
+    }
+
+    bool CMDclient::insert_cmd_log(CmdLog &log) {
         Database db;
         ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
-            exit(EXIT_FAILURE);
+            return false;
         }
-        char* siteCode = scode.getSiteCode();
-        string query = "select * from RSite";
-        query += " where SiteCode = '";
-        query += siteCode;
-        query += "';";
-        syslog(LOG_DEBUG, "Query : %s", query.c_str());
-        delete[] siteCode;
-        return false;
+
+        string insert = "INSERT INTO RHistory(SiteCode, ControlDate, ControlTime, AckResult, ResultCode)";
+        insert += " VALUES ('";
+        insert += log.siteCode;
+        insert += "', '";
+        insert += log.date;
+        insert += "', '";
+        insert += log.time;
+        insert += "', '";
+        insert += log.ackResult;
+        insert += "', ";
+        insert += to_string(log.resultCode);
+        insert += ");";
+        syslog(LOG_DEBUG, "Query : %s", insert.c_str());
+
+        ecode = db.db_query(insert.c_str());
+        if (ecode != EC_SUCCESS) {
+            syslog(LOG_ERR, "DB Insert Query Error!");
+            return false;
+        }
+        return true;
     }
 
-    bool CMDclient::update_cmd_log() {
-        return false;
+    bool CMDclient::update_cmd_log(CmdLog &log) {
+        if (!log.ack) {
+            return false;
+        }
+        
+        Database db;
+        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        if (ecode!= EC_SUCCESS) {
+            syslog(LOG_ERR, "DB Connection Error!");
+            return false;
+        }
+        
+        string insert = "UPDATE RHistory SET ";
+        insert += " AckDate = '";
+        insert += log.ackDate;
+        insert += "', AckTime = '";
+        insert += log.ackTime;
+        insert += "', AckResult = '";
+        insert += log.ackResult;
+        insert += "', ResultCode = ";
+        insert += to_string(log.resultCode);
+        insert += " WHERE SiteCode = '";
+        insert += log.siteCode;
+        insert += "' AND ControlDate = '";
+        insert += log.date;
+        insert += "' AND ControlTime = '";
+        insert += log.time;
+        insert += "';";
+        syslog(LOG_DEBUG, "Query : %s", insert.c_str());
+
+        ecode = db.db_query(insert.c_str());
+        if (ecode != EC_SUCCESS) {
+            syslog(LOG_ERR, "DB Update Query Error!");
+            return false;
+        }
+        return true;
     }
 
 }

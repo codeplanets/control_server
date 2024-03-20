@@ -203,6 +203,7 @@ int main(int argc, char *argv[]) {
     createDataFile(CLIENT_DATA);
 
     if(test) {
+
         cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::MAPPER)<< endl;
 
         // read_mapper(RTU_DATA, rtu_mapper_list);
@@ -291,7 +292,22 @@ int main(int argc, char *argv[]) {
         cmdres.crc8.setCRC8(common::calcCRC((DATA*)&cmdres, sizeof(cmdres)));
         memcpy(sendbuf, (char*)&cmdres, sizeof(cmdres));
         common::print_hex(sendbuf, sizeof(cmdres));
-
+        //////////////////////////////////////////////////////////////
+        char YYYYMMDD[9];
+        char HHMMSS[7];
+        time_t timer = time(NULL);
+        // LocalTime
+        struct tm* t = localtime(&timer);
+        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
+        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
+        cout << YYYYMMDD << endl;
+        cout << HHMMSS << endl;
+        // UTC
+        gmtime_r(&timer, t);
+        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
+        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
+        cout << YYYYMMDD << endl;
+        cout << HHMMSS << endl;
         //////////////////////////////////////////////////////////////
         string strAddr = find_rtu_addr(res.siteCode);
         cout << strAddr << endl;

@@ -62,7 +62,8 @@ namespace core {
         private:
             char result;
         public:
-            char getResult();
+            char getRawResult();
+            std::string getStrResult();
             void setResult(char);
         };
 

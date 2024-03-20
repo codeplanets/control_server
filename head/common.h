@@ -60,6 +60,11 @@ const std::string NOT_FOUND = "NONE";
 const std::string RTU_DATA = "./data/rtu.data";
 const std::string CLIENT_DATA = "./data/cmd.data";
 
+const int CONTROL_OK = 1;
+const int SITE_NOT_FOUND = 2;
+const int NOT_CONNECT = 3;
+const int NOT_ACK = 4;
+
 namespace core {
     namespace common {
         typedef struct mq_rtu_mapper {

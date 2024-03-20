@@ -70,8 +70,11 @@ namespace core {
         }
         /////////////////////////////////////////////
         // Class Result        
-        char Result::getResult() {
+        char Result::getRawResult() {
             return this->result;
+        }
+        std::string Result::getStrResult() {
+            return this->result == 0x01? "Y" : "N";
         }
         void Result::setResult(char result) {
             this->result = result;            
@@ -190,7 +193,7 @@ namespace core {
             syslog(LOG_DEBUG, "scd: %s", this->siteCode.getSiteCode());
             syslog(LOG_DEBUG, "dc : %s", this->dcCommand.getCommand());
             syslog(LOG_DEBUG, "ac : %s", this->acCommand.getCommand());
-            syslog(LOG_DEBUG, "rst: %0X", this->result.getResult());
+            syslog(LOG_DEBUG, "rst: %0X", this->result.getRawResult());
             syslog(LOG_DEBUG, "crc: 0x%02X", this->crc8.getCRC8());
             syslog(LOG_DEBUG, "etx: 0x%02X", this->etx);
         }
@@ -254,7 +257,7 @@ namespace core {
             syslog(LOG_DEBUG, "scd: %s", this->siteCode.getSiteCode());
             syslog(LOG_DEBUG, "dc : %s", this->dcCommand.getCommand());
             syslog(LOG_DEBUG, "ac : %s", this->acCommand.getCommand());
-            syslog(LOG_DEBUG, "rst: %0X", this->result.getResult());
+            syslog(LOG_DEBUG, "rst: %0X", this->result.getRawResult());
             syslog(LOG_DEBUG, "crc: 0x%02X", this->crc8.getCRC8());
             syslog(LOG_DEBUG, "etx: 0x%02X", this->etx);
         }
@@ -287,7 +290,7 @@ namespace core {
             syslog(LOG_DEBUG, "len: %u", this->length);
             syslog(LOG_DEBUG, "act: %0X", this->action.getAction());
             syslog(LOG_DEBUG, "scd: %s", this->siteCode.getSiteCode());
-            syslog(LOG_DEBUG, "rst: %0X", this->result.getResult());
+            syslog(LOG_DEBUG, "rst: %0X", this->result.getRawResult());
             syslog(LOG_DEBUG, "crc: 0x%02X", this->crc8.getCRC8());
             syslog(LOG_DEBUG, "etx: 0x%02X", this->etx);
         }
