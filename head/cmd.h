@@ -11,8 +11,6 @@ namespace core {
         Command dcCommand;
         Command acCommand;
         Result cmdResult;
-        Action action;
-        Result actResult;
 
         CmdLog cmdLog;
 

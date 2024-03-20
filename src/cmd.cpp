@@ -94,7 +94,7 @@ namespace core {
             syslog(LOG_DEBUG, "CMDclient::reqMessage : SetupInfoAck size = %ld", sizeof(msg));
             
             // Packetizer
-            msg.fromAddr = this->rtuAddr;
+            msg.fromAddr = this->serverAddr;
             msg.toAddr = this->cmdAddr;
             msg.action = this->action;
             msg.siteCode = this->scode;
@@ -197,9 +197,17 @@ namespace core {
                             syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
                             len = reqMessage(sock_buf, COMMAND_CLIENT_ACK);
                             newSock.send(sock_buf, len);
+
+                        } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
+                            syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
+                            common::print_hex(mq_buf, rcvByte);
+                            newSock.send(mq_buf, rcvByte);
+
                         } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
                             syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
+                            common::print_hex(mq_buf, rcvByte);
                             newSock.send(mq_buf, rcvByte);
+
                         } else {
                             syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                         }
@@ -270,8 +278,7 @@ namespace core {
                         if (addr != NOT_FOUND) {
                             this->rtuAddr.setAddr(addr, RTU_ADDRESS);
                             // TODO : 해당 Address의 RTU MQ에 send 해야함.
-                            syslog(LOG_INFO, "SVR >> MQ : Command RTU.");
-                            sendByte = reqMessage(mq_buf, COMMAND_RTU);
+                            sendByte = reqMessage(sendbuf, COMMAND_RTU);
                             Mq rtu_mq;
                             pid_t pid = 0;
                             std::vector<pid_t> pids;
@@ -284,8 +291,9 @@ namespace core {
                                 cout << *it << " ";
                                 pid = *it;
                                 if (pid != 0) {
+                                    syslog(LOG_INFO, "SVR >> MQ : Command RTU. : %d", pid);
                                     rtu_mq.open(RTU_MQ_NAME, pid);
-                                    rtu_mq.send(mq_buf, sendByte);
+                                    rtu_mq.send(sendbuf, sendByte);
                                     rtu_mq.close();
                                 }
                             }
@@ -314,38 +322,66 @@ namespace core {
                         msg.print();
                         
                         // 값들을 저장
-                        DATA result = ACTION_RESULT_OK;
-                        bool shutdown = false;
-                        this->serverAddr = msg.fromAddr;    // * 확인 *
-                        this->rtuAddr = msg.toAddr;         // * 확인 *
+                        // bool shutdown = false;
+                        this->serverAddr = msg.fromAddr;
+                        this->rtuAddr = msg.toAddr;
                         this->action = msg.action;
                         this->scode = msg.siteCode;
-
-                        // Action I, U, D
-                        char action = this->action.getAction();
-                        if (action != 'Q') {
-                            syslog(LOG_INFO, "SVR >> DB : Setup Info Action %c!", this->action.getAction());
-                            if (updateDatabase(true)) {
-                                result = ACTION_RESULT_OK;
-                            } else {
-                                result = ACTION_RESULT_FAIL;
-                            }
-                        } else {
-                            syslog(LOG_INFO, "Setup Info Action Q!");
-                            shutdown = true;
-                            result = ACTION_RESULT_OK;
-                        }
-                        
+                        DATA result = ACTION_RESULT_FAIL;
                         this->actResult.setResult(result);
-                        
                         sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
-                        newSock.send(sendbuf, sendByte);
 
-                        if (shutdown) {
-                            syslog(LOG_INFO, "Server Shutdown.");
-                            break;
-                            // TODO: kill process
+                        Mq rtu_mq;
+                        pid_t pid = 0;
+                        std::vector<pid_t> pids;
+                        // data에서 pid를 read.
+                        read_mapper(RTU_DATA, mapper_list);
+                        int line = getTotalLine(RTU_DATA);
+                        search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
+                        cout << "RTU PIDs : ";
+                        for (auto it = pids.begin(); it!= pids.end(); it++) {
+                            cout << *it << " ";
+                            pid = *it;
+                            if (pid != 0) {
+                                syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", pid);
+                                rtu_mq.open(RTU_MQ_NAME, pid);
+                                rtu_mq.send(sendbuf, sendByte);
+                                rtu_mq.close();
+                            }
                         }
+                        cout << endl;
+
+                        if (pid == 0) {
+                            syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
+                            syslog(LOG_INFO, "SVR >> CMD : Setup Info Ack %c!", this->action.getAction());
+                            newSock.send(sendbuf, sendByte);
+                        }
+
+                        // // Action I, U, D
+                        // char action = this->action.getAction();
+                        // if (action != 'Q') {
+                        //     if (updateDatabase(true)) {
+                        //         result = ACTION_RESULT_OK;
+                        //     } else {
+                        //         result = ACTION_RESULT_FAIL;
+                        //     }
+                        // } else {
+                        //     syslog(LOG_INFO, "Setup Info Action Q!");
+                        //     shutdown = true;
+                        //     result = ACTION_RESULT_OK;
+                        // }
+                        
+                        // this->actResult.setResult(result);
+                        
+                        // syslog(LOG_INFO, "SVR >> CMD : Setup Info Action Ack %c!", this->action.getAction());
+                        // sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
+                        // newSock.send(sendbuf, sendByte);
+
+                        // if (shutdown) {
+                        //     syslog(LOG_INFO, "Server Shutdown.");
+                        //     break;
+                        //     // TODO: kill process
+                        // }
 
                     } else if (sock_buf[1] == RTU_STATUS_REQ) {
                         syslog(LOG_INFO, "CMD >> SVR : RTU Status Req.");

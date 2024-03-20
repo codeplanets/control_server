@@ -22,6 +22,7 @@ namespace core {
     
     protected:
     private:
+        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
         // core::common::MAPPER mapper_list[MAX_POOL] = {0, };
     };
 }

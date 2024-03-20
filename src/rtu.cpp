@@ -82,6 +82,23 @@ namespace core {
             common::print_hex(buf, sizeof(msg));
             return sizeof(msg);
 
+        } else if (cmd == SETUP_INFO_ACK) {
+            SetupInfoAck msg;
+            syslog(LOG_DEBUG, "CMDclient::reqMessage : SetupInfoAck size = %ld", sizeof(msg));
+            
+            // Packetizer
+            msg.fromAddr = this->serverAddr;
+            msg.toAddr = this->cmdAddr;
+            msg.action = this->action;
+            msg.siteCode = this->scode;
+            msg.result = this->actResult;
+            msg.crc8.setCRC8(common::calcCRC((DATA*)&msg, sizeof(msg)));
+            msg.print();
+
+            memcpy(buf, (char*)&msg, sizeof(msg));
+            common::print_hex(buf, sizeof(msg));
+            return sizeof(msg);
+
         } else {
             syslog(LOG_WARNING, "Unknown message type. : 0x%X", cmd);
         }
@@ -130,6 +147,7 @@ namespace core {
             try {
                 errno = 0;
                 int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
+                int sendByte = 0;
                 if (rcvByte > 0) {
                     if (mq_buf[0] == STX) {
                         if (mq_buf[1] == COMMAND_RTU) {  // Client
@@ -137,6 +155,75 @@ namespace core {
                             common::print_hex(mq_buf, rcvByte);
 
                             newSock.send(mq_buf, rcvByte);
+                        } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
+                            syslog(LOG_INFO, "MQ >> SVR : Setup Info Ack.");
+                            
+                            SetupInfoAck msg;
+                            assert(rcvByte == sizeof(msg));
+                            memcpy((void*)&msg, mq_buf, rcvByte);
+                            if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
+                                syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                            }
+                            msg.print();
+
+                            // 값들을 저장
+                            SiteCode scode_old = this->scode;
+                            this->action = msg.action;
+                            this->scode = msg.siteCode;
+                            DATA result = ACTION_RESULT_OK;
+
+                            char action = this->action.getAction();
+                            if (action != 'Q') {
+                                if (isSiteCodeAvailable() == false) {
+                                    result = ACTION_RESULT_FAIL;
+                                    this->scode = scode_old;    // restore sitecode
+                                } else {
+                                    result = ACTION_RESULT_OK;
+                                }
+                            } else {
+                                syslog(LOG_INFO, "Setup Info Action Q!");
+                                return;
+                            }
+                            this->actResult.setResult(result);
+                            sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
+
+                            // TODO : Client MQ 에 데이터를 전송
+                            Mq cmd_mq;
+                            pid_t pid = 0;
+                            std::vector<pid_t> pids;
+                            // data에서 pid를 read.
+                            // read_mapper(CLIENT_DATA, cmd_mapper_list);
+                            // int line = getTotalLine(CLIENT_DATA);
+                            // core::common::MAPPER* map;
+                            // for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
+                            //     if (map->pid != 0) {
+                            //         if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
+                            //             syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", map->pid);
+                            //             cmd_mq.send(sendbuf, sendByte);
+                            //             cmd_mq.close();
+                            //         } else {
+                            //             syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                            //         }
+                            //     }
+                            // }
+                            read_mapper(CLIENT_DATA, cmd_mapper_list);
+                            int line = getTotalLine(CLIENT_DATA);
+                            syslog(LOG_DEBUG, "Client Address : 0x%02X Searching...", msg.toAddr.getAddr());
+                            search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
+
+                            for (auto it = pids.begin(); it!= pids.end(); it++) {
+                                cout << *it << endl;
+                                pid = *it;
+                                if (pid != 0) {
+                                    if (cmd_mq.open(CLIENT_MQ_NAME, pid)) {
+                                        syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", pid);
+                                        cmd_mq.send(sendbuf, sendByte);
+                                        cmd_mq.close();
+                                    } else {
+                                        syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);
+                                    }
+                                }
+                            }
                         } else {
                             syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                         }
@@ -236,34 +323,38 @@ namespace core {
                         pid_t pid = 0;
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
-                        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        // read_mapper(CLIENT_DATA, cmd_mapper_list);
+                        // int line = getTotalLine(CLIENT_DATA);
+                        // core::common::MAPPER* map;
+                        // for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
+                        //     if (map->pid != 0) {
+                        //         if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
+                        //             syslog(LOG_INFO, "SVR >> MQ : Command RTU Ack. : %d", map->pid);
+                        //             cmd_mq.send(sock_buf, sizeof(msg));
+                        //             cmd_mq.close();
+                        //         } else {
+                        //             syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                        //         }
+                        //     }
+                        // }
+                        // core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
                         read_mapper(CLIENT_DATA, cmd_mapper_list);
                         int line = getTotalLine(CLIENT_DATA);
-                        core::common::MAPPER* map;
-                        for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
-                            if (map->pid != 0) {
-                                if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
-                                    syslog(LOG_INFO, "SVR >> MQ : Command RTU Ack. : %d", map->pid);
+                        syslog(LOG_DEBUG, "Client Address : 0x%02X Searching...", msg.toAddr.getAddr());
+                        search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
+                        for (auto it = pids.begin(); it!= pids.end(); it++) {
+                            cout << *it << endl;
+                            pid = *it;
+                            if (pid != 0) {
+                                if (cmd_mq.open(CLIENT_MQ_NAME, pid)) {
+                                    syslog(LOG_INFO, "SVR >> MQ : Command RTU Ack. : %d", pid);
                                     cmd_mq.send(sock_buf, sizeof(msg));
                                     cmd_mq.close();
                                 } else {
-                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);
                                 }
                             }
                         }
-                        // core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
-                        // read_mapper(CLIENT_DATA, cmd_mapper_list);
-                        // int line = getTotalLine(CLIENT_DATA);
-                        // search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
-                        // for (auto it = pids.begin(); it!= pids.end(); it++) {
-                        //     cout << *it << endl;
-                        //     pid = *it;
-                        //     if (pid != 0) {
-                        //         cmd_mq.open(CLIENT_MQ_NAME, pid);
-                        //         cmd_mq.send(sock_buf, sizeof(msg));
-                        //         cmd_mq.close();
-                        //     }
-                        // }
                         // TODO : updateDatabase();
 
                     } else {

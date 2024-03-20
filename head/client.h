@@ -18,6 +18,8 @@ namespace core {
         Address serverAddr;
         Address cmdAddr;
         SiteCode scode;
+        Action action;
+        Result actResult;
         Mq mq;
         u_short m_addr;
         bool m_isCreatedMq;
