@@ -106,24 +106,63 @@ namespace core {
             return sizeof(msg);
 
         } else if (cmd == RTU_STATUS_RES) {
+            
+            int shm_fd;
+            void* shm_ptr;
+            system::SemLock status_lock(sem_rtu_status);
+            size_t size = getcount_site();
+            if (size == 0) {
+                syslog(LOG_ERR, "No Site Code Found!");
+            } else {
+                syslog(LOG_INFO, "Site Code Found : %ld", size);
+            }
+            RtuStatus rtustatus[size];
+            int bodysize = sizeof(rtustatus);
+
+            status_lock.lock();
+            shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+            if (shm_fd == -1) {
+                syslog(LOG_ERR, "shm_open error!");
+                exit(EXIT_FAILURE);
+            }
+            ftruncate(shm_fd, bodysize);
+            shm_ptr = mmap(NULL, bodysize, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+            if (shm_ptr == MAP_FAILED) {
+                syslog(LOG_ERR, "mmap error!");
+                exit(EXIT_FAILURE);
+            }
+            memcpy((void*)rtustatus, shm_ptr, bodysize);
+            munmap(shm_ptr, bodysize);  // close
+            status_lock.unlock();
+
+            // Packetizer
             RtuStatusResHead msgHead;
             RtuStatusResTail msgTail;
             syslog(LOG_DEBUG, "CMDclient::reqMessage : RtuStatusResHead size = %ld", sizeof(msgHead));
 
-            // Packetizer
-            msgHead.fromAddr = this->rtuAddr;
-            // msg.toAddr = this->cmdAddr;
+            msgHead.stx = STX;
+            msgHead.cmd = RTU_STATUS_RES;
+            msgHead.fromAddr = this->serverAddr;
             msgHead.toAddr.setAddr(0x0FFF, CLIENT_ADDRESS);
-            // set RtuStatus rtuStatus[];
-            // msgHead.rtuStatus[i] = this->rtuStatus[i];
+            msgHead.length = bodysize + sizeof(u_short);
+            msgHead.count = size;
             msgHead.print();
 
-            msgTail.crc8.setCRC8(common::calcCRC((DATA*)&msgHead, sizeof(msgHead)));
+            int msgSize = sizeof(msgHead);
+            // head만큼 copy
+            memcpy(buf, (char*)&msgHead, msgSize);
+            // head 끝부분 부터 bodysize만큼 copy
+            memcpy(buf+msgSize, rtustatus, bodysize);
+            msgSize += bodysize;
+            // head + body crc를 계산
+            msgTail.crc8.setCRC8(common::calcCRC((DATA*)&buf, msgSize));
 
-            memcpy(buf, (char*)&msgHead, sizeof(msgHead));
-            memcpy(buf+sizeof(msgHead), (char*)&msgTail, sizeof(msgTail));
-            common::print_hex(buf, sizeof(msgHead) + sizeof(msgTail));
-            return sizeof(msgHead) + sizeof(msgTail);
+            memcpy(buf+msgSize, (char*)&msgTail, sizeof(msgTail));
+            // tail만큼 더해서 전체 메시지 크기 계산
+            msgSize += sizeof(msgTail);
+            common::print_hex(buf, msgSize);
+            return msgSize;
+
         } else {
             syslog(LOG_WARNING, "Unknown message type. : 0x%X", cmd);
         }
@@ -146,6 +185,9 @@ namespace core {
         DATA mq_buf[MQ_MSGSIZE] = {0x00,};
         DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
 
+        system::SemLock rtu_lock(sem_rtu_data);
+        system::SemLock cmd_lock(sem_cmd_data);
+
         int len = reqMessage(sendbuf, CLIENT_INIT_RES);
         newSock.send(sendbuf, len);
 
@@ -154,16 +196,16 @@ namespace core {
         u_short addr = this->cmdAddr.getAddr();
         pid_t pid = getpid();
         if (addr > 0) {
+            cmd_lock.lock();
             read_mapper(CLIENT_DATA, mapper_list);
             int line = getTotalLine(CLIENT_DATA);
             mapper_list[line] = add_mapper(pid, addr);
             write_mapper(CLIENT_DATA, mapper_list);
             print_mapper(mapper_list);
+            cmd_lock.unlock();
         }
 
         while (true) {
-            common::sleep(100);
-
             // Message Queue 수신 처리
             try {
                 errno = 0;
@@ -276,8 +318,11 @@ namespace core {
                             pid_t pid = 0;
                             std::vector<pid_t> pids;
                             // data에서 pid를 read.
+                            rtu_lock.lock();
                             read_mapper(RTU_DATA, mapper_list);
+                            print_mapper(mapper_list);
                             int line = getTotalLine(RTU_DATA);
+                            rtu_lock.unlock();
                             search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
                             cout << "RTU PIDs : ";
                             for (auto it = pids.begin(); it!= pids.end(); it++) {
@@ -328,8 +373,10 @@ namespace core {
                         pid_t pid = 0;
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
+                        rtu_lock.lock();
                         read_mapper(RTU_DATA, mapper_list);
                         int line = getTotalLine(RTU_DATA);
+                        rtu_lock.unlock();
                         search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
                         cout << "RTU PIDs : ";
                         for (auto it = pids.begin(); it!= pids.end(); it++) {
@@ -394,21 +441,22 @@ namespace core {
                         // TODO : 모든 Address의 Client MQ에 send 해야함.
                         sendByte = reqMessage(sendbuf, RTU_STATUS_RES);
                         Mq cmd_mq;
-                        pid_t pid = 0;
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
                         core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        cmd_lock.lock();
                         read_mapper(CLIENT_DATA, cmd_mapper_list);
                         int line = getTotalLine(CLIENT_DATA);
+                        cmd_lock.unlock();
                         core::common::MAPPER* map;
                         for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
                             if (map->pid != 0) {
-                                if (cmd_mq.open(CLIENT_MQ_NAME, pid)) {
+                                if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
                                     syslog(LOG_INFO, "SVR >> MQ : RTU Status Res. : %d", map->pid);
                                     cmd_mq.send(sendbuf, sendByte);
                                     cmd_mq.close();
                                 } else {
-                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
+                                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", map->pid);                                    
                                 }
                             }
                         }
@@ -422,6 +470,7 @@ namespace core {
             } catch (SocketException& se) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             }
+            common::sleep(100);
 
         }
     }

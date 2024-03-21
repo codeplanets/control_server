@@ -5,10 +5,59 @@
 #include "packetizer.h"
 #include "socketexception.h"
 
+std::string g_sitecode = "";
+
+void setStatus(string code, DATA status) {
+    /////////////////////////////////////////////////
+    // Child
+    core::system::SemLock status_lock(sem_rtu_status);
+
+    int shm_fd;
+    void* shm_ptr;
+    size_t size = core::common::getcount_site();
+    if (size == 0) {
+        syslog(LOG_ERR, "NotFound Site Code!");
+        return;
+    } else {
+        syslog(LOG_INFO, "Found Site Code : %ld", size);
+    }
+    RtuStatus rtustatus[size];
+    status_lock.lock();
+
+    shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+    if (shm_fd == -1) {
+        syslog(LOG_ERR, "shm_open error!");
+        exit(EXIT_FAILURE);
+    }
+    ftruncate(shm_fd, sizeof(rtustatus));
+    shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        syslog(LOG_ERR, "mmap error!");
+        exit(EXIT_FAILURE);
+    }
+    memcpy((void*)rtustatus, shm_ptr, sizeof(rtustatus));
+    for (size_t i = 0; i < size; i++) {
+        RtuStatus st = rtustatus[i];
+        if (code.compare(st.siteCode.getSiteCode()) == 0) {
+            rtustatus[i].status.setStatus(status);
+            printf("%s-0x%0X>0x%0X\n", st.siteCode.getSiteCode() ,st.status.getStatus(), status);
+        }
+    }
+    memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
+    munmap(shm_ptr, sizeof(rtustatus));  // close
+    status_lock.unlock();
+}
+
 void rtu_timeout_handler(int sig) {
     if (sig == SIGALRM) {
         syslog(LOG_WARNING, "Timeout %d seconds", WAITING_SEC);
     }
+
+    if (g_sitecode.size()) {
+        setStatus(g_sitecode, STATUS_DISCONNECTED);
+        g_sitecode = "";
+    }
+
     exit(EXIT_FAILURE);
 }
 
@@ -19,16 +68,10 @@ namespace core {
     }
 
     RTUclient::~RTUclient() {
+        g_sitecode = this->scode.getSiteCode();
+        setStatus(g_sitecode, STATUS_DISCONNECTED);
+        g_sitecode = "";
         mq.close();
-        updateStatus(false);
-    }
-
-    void RTUclient::init(InitReq &msg) {
-        this->rtuAddr = msg.fromAddr;
-        this->serverAddr = msg.toAddr;
-        this->scode = msg.siteCode;
-
-        syslog(LOG_DEBUG, "RTUclient::init : RTU-0x%02X Server-0x%02X Sitecode-%s", this->rtuAddr.getAddr(), this->serverAddr.getAddr(), this->scode.getSiteCode());
     }
 
     int RTUclient::reqMessage(DATA* buf, DATA cmd) {
@@ -114,34 +157,64 @@ namespace core {
         alarm(WAITING_SEC);
     }
 
+    void RTUclient::setStatus(string code, DATA status) {
+        /////////////////////////////////////////////////
+        // Child
+        system::SemLock status_lock(sem_rtu_status);
+        size_t size = getcount_site();
+        if (size == 0) {
+            syslog(LOG_ERR, "No Site Code Found!");
+            return;
+        } else {
+            syslog(LOG_INFO, "Site Code Found : %ld", size);
+        }
+        RtuStatus rtustatus[size];
+        status_lock.lock();
+        shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+        if (shm_fd == -1) {
+            syslog(LOG_ERR, "shm_open error!");
+            exit(EXIT_FAILURE);
+        }
+        ftruncate(shm_fd, sizeof(rtustatus));
+        shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+        if (shm_ptr == MAP_FAILED) {
+            syslog(LOG_ERR, "mmap error!");
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy((void*)rtustatus, shm_ptr, sizeof(rtustatus));
+        for (size_t i = 0; i < size; i++) {
+            RtuStatus st = rtustatus[i];
+            if (code.compare(st.siteCode.getSiteCode()) == 0) {
+                rtustatus[i].status.setStatus(status);
+                printf("%s-0x%0X>0x%0X\n", st.siteCode.getSiteCode() ,st.status.getStatus(), status);
+            }
+        }
+        memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
+        munmap(shm_ptr, sizeof(rtustatus));  // close
+        status_lock.unlock();
+    }
+
     void RTUclient::run() {
         
         DATA sock_buf[MAX_RAW_BUFF] = {0x00,};
         DATA mq_buf[MQ_MSGSIZE] = {0x00,};
         DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
 
-        int len = reqMessage(sendbuf, INIT_RES);
-        newSock.send(sendbuf, len);
+        system::SemLock rtu_lock(sem_rtu_data);
+        system::SemLock cmd_lock(sem_cmd_data);
 
-        if (isSiteCodeAvailable() == false) {
-            common::sleep(5000);
-            return;
-        }
+        // int len = reqMessage(sendbuf, INIT_RES);
+        // newSock.send(sendbuf, len);
+
+        // if (isSiteCodeAvailable() == false) {
+        //     common::sleep(5000);
+        //     return;
+        // }
+
         createMessageQueue(RTU_MQ_NAME);
-        updateStatus(true);
-
-        u_short addr = this->rtuAddr.getAddr();
-        pid_t pid = getpid();
-        if (addr > 0) {
-            read_mapper(RTU_DATA, mapper_list);
-            int line = getTotalLine(RTU_DATA);
-            mapper_list[line] = add_mapper(pid, addr);
-            write_mapper(RTU_DATA, mapper_list);
-            print_mapper(mapper_list);
-        }
 
         while (true) {
-            common::sleep(100);
 
             // TODO : Command Client Message Queue
             try {
@@ -191,6 +264,7 @@ namespace core {
                             Mq cmd_mq;
                             pid_t pid = 0;
                             std::vector<pid_t> pids;
+                            cmd_lock.lock();
                             // data에서 pid를 read.
                             // read_mapper(CLIENT_DATA, cmd_mapper_list);
                             // int line = getTotalLine(CLIENT_DATA);
@@ -208,6 +282,8 @@ namespace core {
                             // }
                             read_mapper(CLIENT_DATA, cmd_mapper_list);
                             int line = getTotalLine(CLIENT_DATA);
+                            cmd_lock.unlock();
+
                             syslog(LOG_DEBUG, "Client Address : 0x%02X Searching...", msg.toAddr.getAddr());
                             search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
 
@@ -283,6 +359,10 @@ namespace core {
                         }
                         msg.print();
 
+                        this->rtuAddr = msg.fromAddr;
+                        this->serverAddr = msg.toAddr;
+                        this->scode = msg.siteCode;
+
                         syslog(LOG_INFO, "SVR >> RTU : RTU Init Res.");
                         if (isSiteCodeAvailable() == false) {
                             sendByte = reqMessage(sendbuf, INIT_RES);
@@ -290,12 +370,30 @@ namespace core {
                             common::sleep(5000);
                             return;
                         }
+
                         sendByte = reqMessage(sendbuf, INIT_RES);
                         newSock.send(sendbuf, sendByte);
+
+                        u_short addr = this->rtuAddr.getAddr();
+                        pid_t pid = getpid();
+                        if (addr > 0) {
+                            rtu_lock.lock();
+                            read_mapper(RTU_DATA, mapper_list);
+                            int line = getTotalLine(RTU_DATA);
+                            mapper_list[line] = add_mapper(pid, addr);
+                            write_mapper(RTU_DATA, mapper_list);
+                            print_mapper(mapper_list);
+                            rtu_lock.unlock();
+                        }
+
+                        string scode = this->scode.getSiteCode();
+                        setStatus(scode, STATUS_CONNECTED);
+                        g_sitecode = scode;
 
                     } else if (sock_buf[1] == HEART_BEAT) {  // RTU
                         syslog(LOG_INFO, "RTU >> SVR : Heartbeat.");
                         alarm(WAITING_SEC);
+                        
                         HeartBeat msg;
                         assert(rcvByte == sizeof(msg));
                         memcpy((void*)&msg, sock_buf, rcvByte);
@@ -322,6 +420,7 @@ namespace core {
                         Mq cmd_mq;
                         pid_t pid = 0;
                         std::vector<pid_t> pids;
+                        cmd_lock.lock();
                         // data에서 pid를 read.
                         // read_mapper(CLIENT_DATA, cmd_mapper_list);
                         // int line = getTotalLine(CLIENT_DATA);
@@ -340,6 +439,8 @@ namespace core {
                         // core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
                         read_mapper(CLIENT_DATA, cmd_mapper_list);
                         int line = getTotalLine(CLIENT_DATA);
+                        cmd_lock.unlock();
+
                         syslog(LOG_DEBUG, "Client Address : 0x%02X Searching...", msg.toAddr.getAddr());
                         search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
                         for (auto it = pids.begin(); it!= pids.end(); it++) {
@@ -365,7 +466,7 @@ namespace core {
             } catch (SocketException& se) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             }
-
+            common::sleep(100);
         }
     }
 }

@@ -22,7 +22,6 @@
 #include "rtu.h"
 #include "cmd.h"
 #include "db.h"
-#include "lock.h"
 
 using namespace std;
 using namespace core;
@@ -36,36 +35,63 @@ void setIntSignal();
 std::vector<pid_t> connected;
 std::priority_queue<u_short, vector<u_short>, greater<u_short>> cmdAddrQueue;
 
-size_t get_sitecode(std::vector<std::string> &sitecodes) {
-    Database db;
-    ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
-    if (ecode!= EC_SUCCESS) {
-        syslog(LOG_ERR, "DB Connection Error!");
-        return 0;
-    }
-    string query = "SELECT SiteCode FROM RSite ORDER BY SiteCode;";
-    syslog(LOG_DEBUG, "Query : %s", query.c_str());
+namespace core {
+    namespace common {
+        size_t getcount_site() {
+            Database db;
+            ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            if (ecode!= EC_SUCCESS) {
+                syslog(LOG_ERR, "DB Connection Error!");
+                return 0;
+            }
+            string query = "SELECT COUNT(*) FROM RSite;";
+            syslog(LOG_DEBUG, "Query : %s", query.c_str());
 
-    // Query Data
-    MYSQL_ROW sqlrow;
-    MYSQL_RES* pRes;
-    ecode = db.db_query(query.c_str(), &pRes);
-    if (ecode != EC_SUCCESS) {
-        syslog(LOG_ERR, "DB Query Error!");
-        return 0;
-    }
-    try {
-        while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
-            syslog(LOG_DEBUG, "| %9s |", sqlrow[0]);
-            string scode = sqlrow[0];
-            sitecodes.push_back( scode );
+            // Query Data
+            MYSQL_RES* pRes;
+            try {
+                pRes = db.db_get_result(query.c_str());
+                return pRes->row_count;
+            } catch (exception& e) {
+                syslog(LOG_ERR, "DB Fetch Error!");
+                cout << e.what() << endl;
+            }
+            
+            return 0;
         }
-    } catch (exception& e) {
-        syslog(LOG_ERR, "DB Fetch Error!");
-        cout << e.what() << endl;
+
+        size_t get_sitecode(std::vector<std::string> &sitecodes) {
+            Database db;
+            ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            if (ecode!= EC_SUCCESS) {
+                syslog(LOG_ERR, "DB Connection Error!");
+                return 0;
+            }
+            string query = "SELECT SiteCode FROM RSite ORDER BY SiteCode;";
+            syslog(LOG_DEBUG, "Query : %s", query.c_str());
+
+            // Query Data
+            MYSQL_ROW sqlrow;
+            MYSQL_RES* pRes;
+            ecode = db.db_query(query.c_str(), &pRes);
+            if (ecode != EC_SUCCESS) {
+                syslog(LOG_ERR, "DB Query Error!");
+                return 0;
+            }
+            try {
+                while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+                    // syslog(LOG_DEBUG, "| %9s |", sqlrow[0]);
+                    string scode = sqlrow[0];
+                    sitecodes.push_back( scode );
+                }
+            } catch (exception& e) {
+                syslog(LOG_ERR, "DB Fetch Error!");
+                cout << e.what() << endl;
+            }
+            
+            return sitecodes.size();
+        }
     }
-    
-    return sitecodes.size();
 }
 
 std::string find_rtu_addr(SiteCode scode) {
@@ -107,7 +133,7 @@ std::string find_rtu_addr(SiteCode scode) {
     syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
     return addr;
 }
-
+///////////////////////////////////////////////////////////////////////////////////
 void clearMessageQueue() {
     std::system("rm -rf /dev/mqueue/rtu.*");
     std::system("rm -rf /dev/mqueue/client.*");
@@ -211,6 +237,52 @@ int getTotalLine(string name) {
     return(line);
 }
 
+void init_rtu_status() {
+    std::vector<std::string> sitecodes;
+    size_t size = core::common::get_sitecode(sitecodes);
+    if (size == 0) {
+        syslog(LOG_ERR, "No Site Code Found!");
+        exit(EXIT_FAILURE);
+    } else {
+        syslog(LOG_INFO, "Site Code Found : %ld", size);
+        for (size_t i = 0; i < size; i++) {
+            syslog(LOG_INFO, "Site Code : %s", sitecodes[i].c_str());
+        }
+    }
+
+    system::SemLock lock(sem_rtu_status);
+
+    RtuStatus rstatus[size];
+    cout << sizeof(RtuStatus) << endl;
+    cout << sizeof(rstatus) << endl;
+
+    lock.lock();
+    int shm_fd;
+    RtuStatus* shm_ptr;
+    shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR | O_CREAT, 0666);
+    if (shm_fd == -1) {
+        syslog(LOG_ERR, "shm_open error!");
+        exit(EXIT_FAILURE);
+    }
+    ftruncate(shm_fd, sizeof(rstatus));
+    shm_ptr = (RtuStatus *)mmap(NULL, sizeof(rstatus), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        syslog(LOG_ERR, "mmap error!");
+        exit(EXIT_FAILURE);
+    }
+    for (size_t i = 0; i < size; i++) {
+        rstatus[i].siteCode.setSiteCode(sitecodes[i].c_str());
+        rstatus[i].status.setStatus(STATUS_DISCONNECTED);
+    }
+    memcpy((void*)shm_ptr, rstatus, sizeof(rstatus));
+
+    // core::common::print_hex((DATA*)rstatus, sizeof(rstatus));
+    
+    munmap(shm_ptr, sizeof(rstatus));  // close
+    
+    lock.unlock();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[]) {
     // Log 설정
@@ -232,117 +304,15 @@ int main(int argc, char *argv[]) {
     for (u_short i = 0x01; i < 0xFF; i++) {
 		cmdAddrQueue.push(i);
 	}
-    /////////////////////////////////////////////////
-    std::vector<std::string> sitecodes;
-    size_t size = get_sitecode(sitecodes);
-    if (size == 0) {
-        syslog(LOG_ERR, "No Site Code Found!");
-        exit(EXIT_FAILURE);
-    } else {
-        syslog(LOG_INFO, "Site Code Found : %ld", size);
-        for (size_t i = 0; i < size; i++) {
-            syslog(LOG_INFO, "Site Code : %s", sitecodes[i].c_str());
-        }
-    }
-    /////////////////////////////////////////////////
-    const string sem_name = "rtu";
-    const string shm_name = "rtu";
-
-    sem_unlink(sem_name.c_str());
-    shm_unlink(shm_name.c_str());
-
-    system::SemLock lock(sem_name);
-
-    RtuStatus rstatus[size];
-    cout << sizeof(RtuStatus) << endl;
-    cout << sizeof(rstatus) << endl;
-
-    lock.lock();
-    int shm_fd;
-    RtuStatus* shm_ptr;
-    shm_fd = shm_open(shm_name.c_str(), O_RDWR | O_CREAT, 0666);
-    if (shm_fd == -1) {
-        syslog(LOG_ERR, "shm_open error!");
-        exit(EXIT_FAILURE);
-    }
-    ftruncate(shm_fd, sizeof(rstatus));
-    shm_ptr = (RtuStatus *)mmap(NULL, sizeof(rstatus), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if (shm_ptr == MAP_FAILED) {
-        syslog(LOG_ERR, "mmap error!");
-        exit(EXIT_FAILURE);
-    }
-
-    for (size_t i = 0; i < size; i++) {
-        rstatus[i].siteCode.setSiteCode(sitecodes[i].c_str());
-        rstatus[i].status.setStatus(STATUS_DISCONNECTED);
-    }
-
-    memcpy((void*)shm_ptr, rstatus, sizeof(rstatus));
-
-    core::common::print_hex((DATA*)rstatus, sizeof(rstatus));
     
-    munmap(shm_ptr, sizeof(rstatus));  // close
-    
-    lock.unlock();
+    sem_unlink(sem_rtu_status.c_str());
+    shm_unlink(shm_rtu_status.c_str());
 
-    /////////////////////////////////////////////////
-    // shm_unlink(shm_name.c_str());      // remove
-
-    // core::formatter::RSite rSite = {.status = false, .pid = 0 };
+    init_rtu_status();
     createDataFile(RTU_DATA);
     createDataFile(CLIENT_DATA);
 
     if(test) {
-        /////////////////////////////////////////////////
-        // Child
-        RtuStatus rtustatus[size];
-
-        system::SemLock child_lock(sem_name);
-
-        child_lock.lock();
-        int shm_fd_child;
-        void* shm_ptr_child;
-        shm_fd_child = shm_open(shm_name.c_str(), O_RDWR, 0666);
-        if (shm_fd_child == -1) {
-            syslog(LOG_ERR, "shm_open error!");
-            exit(EXIT_FAILURE);
-        }
-        ftruncate(shm_fd_child, sizeof(rtustatus));
-        shm_ptr_child = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd_child, 0);
-        if (shm_ptr_child == MAP_FAILED) {
-            syslog(LOG_ERR, "mmap error!");
-            exit(EXIT_FAILURE);
-        }
-
-        memcpy((void*)rtustatus, shm_ptr_child, sizeof(rtustatus));
-
-        core::common::print_hex((DATA*)shm_ptr_child, sizeof(rtustatus));
-
-        string code = "1000008";
-        for (size_t i = 0; i < size; i++) {
-            RtuStatus st = rtustatus[i];
-            if (code.compare(st.siteCode.getSiteCode()) == 0) {
-                rtustatus[i].status.setStatus(STATUS_CONNECTED);
-                printf("%s-%X\n", st.siteCode.getSiteCode() ,st.status.getStatus());
-            } else {
-                rtustatus[i].status.setStatus(STATUS_DISCONNECTED);
-            }
-        }
-
-        core::common::print_hex((DATA*)rtustatus, sizeof(rtustatus));
-        child_lock.unlock();
-
-        sleep(10);
-
-        // 
-        
-        munmap(shm_ptr_child, sizeof(rtustatus));  // close
-        /////////////////////////////////////////////////
-        shm_unlink(shm_name.c_str());      // remove
-
-
-
-
         cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::MAPPER)<< endl;
 
         cout << getTotalLine(RTU_DATA) << endl;
@@ -559,12 +529,10 @@ int main(int argc, char *argv[]) {
     /**
      * [v] Setting named semaphore ( <== MUTEX )
      * [ ] Loading ini file
-     * [v] Init Database
      * [ ] Getting ip, port....
+     * [v] Init Database
      * [v] Clear memory
      * [v] Create parents server listener socket
-     * ``` 
-     * 
     **/
 
     // 종료전 Multiple Running 방지 해제
@@ -578,29 +546,33 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
     // init 정보 수신
     DATA data[MAX_RAW_BUFF] = { 0 };
 
-    int len = newSock.recv(data, MAX_RAW_BUFF);
-
+    int len = newSock.peek(data, MAX_RAW_BUFF);
+    
     if (len > 0) {
         cout << "[" << getpid() << "] : " << endl;
         core::common::print_hex(data, len);
         
         // 메시지 타입 구분 (RTUs / Cmd Clients)
         if (data[0] == STX) {
-            if (data[1] == INIT_REQ) {  // RTUs
+            MsgHeader head;
+            memcpy((void*)&head, data, sizeof(head));
+            head.print();
+
+            if (head.cmd == INIT_REQ) {  // RTUs
                 syslog(LOG_DEBUG, "Start RTU Init Request");
-                InitReq msg;
-                memcpy((void*)&msg, data, len);
-                if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
-                    syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
-                }
-                msg.print();
+                // InitReq msg;
+                // memcpy((void*)&msg, data, len);
+                // if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
+                //     syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
+                // }
+                // msg.print();
 
                 RTUclient rtu(newSock);
-                rtu.init(msg);
+                // rtu.init(msg);
                 rtu.setTimeout();
                 rtu.run();
 
-            } else if (data[1] == CLIENT_INIT_REQ) {    // Cmd Clients
+            } else if (head.cmd == CLIENT_INIT_REQ) {    // Cmd Clients
                 syslog(LOG_DEBUG, "Client Init Request");
                 // TODO : CommandClients
                 ClientInitReq msg;
@@ -648,7 +620,12 @@ void sigchld_handler(int signo) {
             }
         );
 
-        string file = "/dev/mqueue/rtu.";
+        string file = "";
+        
+        system::SemLock rtu_lock(sem_rtu_data);
+        system::SemLock cmd_lock(sem_cmd_data);
+
+        rtu_lock.lock();
         read_mapper(RTU_DATA, rtu_mapper_list);
         core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
         read_mapper(CLIENT_DATA, cmd_mapper_list);
@@ -663,6 +640,9 @@ void sigchld_handler(int signo) {
                 unlink(file.c_str());
             }
         }
+        rtu_lock.unlock();
+
+        cmd_lock.lock();
         if (getTotalLine(CLIENT_DATA) > 0) {
             if (delete_mapper(cmd_mapper_list, getTotalLine(CLIENT_DATA), spid)) {
                 write_mapper(CLIENT_DATA, cmd_mapper_list);
@@ -673,10 +653,10 @@ void sigchld_handler(int signo) {
                 unlink(file.c_str());
             }
         }
+        cmd_lock.unlock();
         
         syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
         cout << cmdAddrQueue.top() << endl;
-
     }
 }
 

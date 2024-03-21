@@ -5,13 +5,11 @@
 #include <regex>
 #include <cassert>
 #include <sys/mman.h>
+#include "lock.h"
 
 typedef int SOCKET;
 typedef u_char DATA;
 
-#define MAX_TASK_NUM	1
-#define MAX_EXTEND_NUM	1
-#define BUFF_SIZE       40960
 #define STX_V       0xFA
 #define ETX_V       0xF5
 #define STX (DATA)0xFA     /* RTU DATA FORMAT ==> STX */
@@ -44,13 +42,19 @@ typedef u_char DATA;
 #define STATUS_CONNECTED (DATA)0x01
 #define STATUS_DISCONNECTED (DATA)0x02
 
-const std::string sem_name = "rtu";
-const std::string shm_name = "rtu";
+// Semaphore
+const std::string sem_rtu_status = "rtu.status";
+const std::string sem_rtu_data = "rtu.data";
+const std::string sem_cmd_data = "cmd.data";
 
+// Shared Memory
+const std::string shm_rtu_status = "rtu.status";
+
+// Message Queue
 const std::string RTU_MQ_NAME = "/rtu.";
 const std::string CLIENT_MQ_NAME = "/client.";
 
-const int MAX_RAW_BUFF = 4096;
+const int MAX_RAW_BUFF = 8192;
 
 const bool test = true;
 const int MAX_POOL = 255;
@@ -81,13 +85,14 @@ namespace core {
             }
         } MAPPER;
 
-        // static MAPPER mapper_list[MAX_POOL] = {0, };
-
         void sleep(unsigned int dwMilliSec);
         void print_hex(DATA *buf, int size);
         u_short convert_be_to_le(DATA* be, int size);
         DATA calcCRC(DATA *buf, int size);
         bool checkCRC(DATA *buf, int size, DATA crc);
+
+        size_t getcount_site();
+        size_t get_sitecode(std::vector<std::string> &sitecodes);
     }
 }
 

@@ -47,6 +47,8 @@ namespace core {
         virtual int reqMessage(DATA* buf, DATA cmd) = 0;
         virtual void run() = 0;
 
+        // size_t get_sitecode(std::vector<std::string> &sitecodes);
+        size_t getcount_site();
         std::string find_rtu_addr(SiteCode scode);
 
         core::common::MAPPER add_mapper(int pid, u_short addr);

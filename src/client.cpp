@@ -34,7 +34,67 @@ namespace core {
         m_isCreatedMq = isCreated;
         return isCreated;
     }
-    
+
+    // size_t Client::get_sitecode(std::vector<std::string> &sitecodes) {
+    //     Database db;
+    //     ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+    //     if (ecode!= EC_SUCCESS) {
+    //         syslog(LOG_ERR, "DB Connection Error!");
+    //         return 0;
+    //     }
+    //     string query = "SELECT SiteCode FROM RSite ORDER BY SiteCode;";
+    //     syslog(LOG_DEBUG, "Query : %s", query.c_str());
+
+    //     // Query Data
+    //     MYSQL_ROW sqlrow;
+    //     MYSQL_RES* pRes;
+    //     ecode = db.db_query(query.c_str(), &pRes);
+    //     if (ecode != EC_SUCCESS) {
+    //         syslog(LOG_ERR, "DB Query Error!");
+    //         return 0;
+    //     }
+    //     try {
+    //         while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+    //             syslog(LOG_DEBUG, "| %9s |", sqlrow[0]);
+    //             string scode = sqlrow[0];
+    //             sitecodes.push_back( scode );
+    //         }
+    //     } catch (exception& e) {
+    //         syslog(LOG_ERR, "DB Fetch Error!");
+    //         cout << e.what() << endl;
+    //     }
+        
+    //     return sitecodes.size();
+    // }
+
+    size_t Client::getcount_site() {
+        Database db;
+        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        if (ecode!= EC_SUCCESS) {
+            syslog(LOG_ERR, "DB Connection Error!");
+            return 0;
+        }
+        string query = "SELECT COUNT(*) FROM RSite;";
+        syslog(LOG_DEBUG, "Query : %s", query.c_str());
+
+        // Query Data
+        MYSQL_RES* pRes;
+        MYSQL_ROW sqlrow;
+        try {
+            pRes = db.db_get_result(query.c_str());
+            sqlrow = db.db_fetch_row(pRes);
+            if (sqlrow) {
+                cout << sqlrow[0] << endl;
+                return atoi(sqlrow[0]);
+            }
+        } catch (exception& e) {
+            syslog(LOG_ERR, "DB Fetch Error!");
+            cout << e.what() << endl;
+        }
+        
+        return 0;
+    }
+
     std::string Client::find_rtu_addr(SiteCode scode) {
         string addr = NOT_FOUND;
         Database db;
@@ -92,6 +152,7 @@ namespace core {
 
     void Client::search_mapper(core::common::MAPPER* mapper, pid_t &pid, int idx, u_short addr) {
         core::common::MAPPER* map;
+        syslog(LOG_DEBUG, "idx %d Searching 0x%02X.......", idx, addr);
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
                 syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
@@ -103,6 +164,7 @@ namespace core {
 
     void Client::search_mapper(core::common::MAPPER* mapper, std::vector<pid_t> &pids, int idx, u_short addr) {
         core::common::MAPPER* map;
+        syslog(LOG_DEBUG, "idx %d Searching 0x%02X.......", idx, addr);
         for (map = mapper; map < mapper + idx; map++) {
             if (map->addr == addr) {
                 syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);

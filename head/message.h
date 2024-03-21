@@ -337,9 +337,8 @@ namespace core {
             Address toAddr;
             unsigned short length;
             unsigned short count;
-            // std::vector<RtuStatus> rtuStatus;
-            // RtuStatus rtuStatus[];
         };
+        
         class RtuStatusResTail {
         public:
             RtuStatusResTail();

@@ -11,7 +11,7 @@ namespace core {
         RTUclient(ServerSocket& sock);
         ~RTUclient();
 
-        void init(InitReq &msg);
+        // void init(InitReq &msg);
         void setTimeout();
         
         /**
@@ -19,8 +19,12 @@ namespace core {
         */
         virtual int reqMessage(DATA* buf, DATA cmd);
         virtual void run();
+
+        void setStatus(string code, DATA status);
     
     protected:
+        int shm_fd;
+        void* shm_ptr;
     private:
         core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
         // core::common::MAPPER mapper_list[MAX_POOL] = {0, };
