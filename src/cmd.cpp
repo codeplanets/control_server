@@ -20,7 +20,6 @@ namespace core {
 
     CMDclient::~CMDclient() {
         mq.close();
-        updateStatus(false);
     }
 
     void CMDclient::init(ClientInitReq &msg, u_short addr) {
@@ -151,7 +150,6 @@ namespace core {
         newSock.send(sendbuf, len);
 
         createMessageQueue(CLIENT_MQ_NAME);
-        updateStatus(true);
 
         u_short addr = this->cmdAddr.getAddr();
         pid_t pid = getpid();
@@ -166,7 +164,7 @@ namespace core {
         while (true) {
             common::sleep(100);
 
-            // TODO : Command RTU Message Queue
+            // Message Queue 수신 처리
             try {
                 errno = 0;
                 int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
@@ -176,7 +174,6 @@ namespace core {
                             syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
                             common::print_hex(mq_buf, rcvByte);
 
-                            // updateDatabase(msg);
                             CommandRtuAck msg;
                             assert(rcvByte == sizeof(msg));
                             memcpy((void*)&msg, mq_buf, rcvByte);
@@ -190,7 +187,6 @@ namespace core {
                             this->acCommand = msg.acCommand;
                             this->cmdResult = msg.result;
 
-                            // updateDatabase(true);
                             setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
                             update_cmd_log(cmdLog);
 
@@ -215,11 +211,11 @@ namespace core {
                         syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                     }
                 }
-            // sleep(1);
             } catch (exception& e) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : %s",__FILE__, __LINE__, e.what());
             }
 
+            // Socket 수신 처리
             try {
                 int msgSize = 0;
                 int sendByte = 0;
@@ -227,16 +223,13 @@ namespace core {
                 int rcvByte = newSock.peek(sock_buf, MAX_RAW_BUFF);
                 if (rcvByte < 0) {
                     if (errno == EAGAIN) {
-                        common::sleep(100);
-                        continue;
+                        continue;   // 다시 mq > socket 순으로 데이터 수신
                     } else {
                         syslog(LOG_ERR, "CMDclient::run : %s", strerror(errno));
                         break;
                     }
                 } else if (rcvByte == 0) {
-                    common::sleep(100);
-                    cout << ".";
-                    continue;
+                    continue;   // 다시 mq > socket 순으로 데이터 수신
                 } else {
                     common::print_hex(sock_buf, rcvByte);
                     if (sock_buf[0] == STX) {

@@ -309,8 +309,17 @@ namespace core {
             syslog(LOG_DEBUG, "etx: 0x%02X", this->etx);
         }
         //////////////////////////////////////////////
+        // Class Status
+        char Status::getStatus() {
+            return this->status;
+        }
+        void Status::setStatus(DATA status) {
+            this->status = status;
+        }
+        //////////////////////////////////////////////
         // Class RtuStatus
-        RtuStatus::RtuStatus(SiteCode scd, Status stat) : siteCode(scd), status(stat) {}
+        // RtuStatus::RtuStatus() {}
+        // RtuStatus::~RtuStatus() {}
         //////////////////////////////////////////////
         // Class RtuStatusResHead
         RtuStatusResHead::RtuStatusResHead() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0) {}

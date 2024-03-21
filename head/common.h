@@ -4,6 +4,7 @@
 #include <string>
 #include <regex>
 #include <cassert>
+#include <sys/mman.h>
 
 typedef int SOCKET;
 typedef u_char DATA;
@@ -43,12 +44,15 @@ typedef u_char DATA;
 #define STATUS_CONNECTED (DATA)0x01
 #define STATUS_DISCONNECTED (DATA)0x02
 
+const std::string sem_name = "rtu";
+const std::string shm_name = "rtu";
+
 const std::string RTU_MQ_NAME = "/rtu.";
 const std::string CLIENT_MQ_NAME = "/client.";
 
 const int MAX_RAW_BUFF = 4096;
 
-const bool test = false;
+const bool test = true;
 const int MAX_POOL = 255;
 const int LISTEN_BACKLOG = 5;
 const u_int WAITING_SEC = 60;

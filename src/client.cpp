@@ -15,7 +15,6 @@ namespace core {
         if (m_isCreatedMq) {
             mq.close();
         }
-        updateStatus(false);
     }
 
     /**
@@ -156,6 +155,10 @@ namespace core {
         return(line);
     }
 
-    bool Client::updateStatus(bool status) { return true; }
+    bool Client::updateStatus(bool status) {
+        
+        return true;
+    }
+
     bool Client::updateDatabase(bool status) { return true; }
 }

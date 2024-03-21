@@ -310,12 +310,17 @@ namespace core {
         };
 
         class Status {
-        public:
+        private:
             DATA status;
+        
+        public:
+            char getStatus();
+            void setStatus(DATA status);
         };
         class RtuStatus {
         public:
-            RtuStatus(SiteCode scd, Status stat);
+            RtuStatus() {}
+            ~RtuStatus() {}
             SiteCode siteCode;
             Status status;
         };
@@ -333,7 +338,7 @@ namespace core {
             unsigned short length;
             unsigned short count;
             // std::vector<RtuStatus> rtuStatus;
-            RtuStatus rtuStatus[];
+            // RtuStatus rtuStatus[];
         };
         class RtuStatusResTail {
         public:

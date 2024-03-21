@@ -355,7 +355,6 @@ namespace core {
                                 }
                             }
                         }
-                        // TODO : updateDatabase();
 
                     } else {
                         syslog(LOG_WARNING, "Unknown message type from socket.");

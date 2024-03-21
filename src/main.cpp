@@ -22,6 +22,7 @@
 #include "rtu.h"
 #include "cmd.h"
 #include "db.h"
+#include "lock.h"
 
 using namespace std;
 using namespace core;
@@ -34,6 +35,38 @@ void setIntSignal();
 ///////////////////////////////////////////////////////////////////////////////////
 std::vector<pid_t> connected;
 std::priority_queue<u_short, vector<u_short>, greater<u_short>> cmdAddrQueue;
+
+size_t get_sitecode(std::vector<std::string> &sitecodes) {
+    Database db;
+    ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+    if (ecode!= EC_SUCCESS) {
+        syslog(LOG_ERR, "DB Connection Error!");
+        return 0;
+    }
+    string query = "SELECT SiteCode FROM RSite ORDER BY SiteCode;";
+    syslog(LOG_DEBUG, "Query : %s", query.c_str());
+
+    // Query Data
+    MYSQL_ROW sqlrow;
+    MYSQL_RES* pRes;
+    ecode = db.db_query(query.c_str(), &pRes);
+    if (ecode != EC_SUCCESS) {
+        syslog(LOG_ERR, "DB Query Error!");
+        return 0;
+    }
+    try {
+        while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
+            syslog(LOG_DEBUG, "| %9s |", sqlrow[0]);
+            string scode = sqlrow[0];
+            sitecodes.push_back( scode );
+        }
+    } catch (exception& e) {
+        syslog(LOG_ERR, "DB Fetch Error!");
+        cout << e.what() << endl;
+    }
+    
+    return sitecodes.size();
+}
 
 std::string find_rtu_addr(SiteCode scode) {
     string addr = NOT_FOUND;
@@ -178,6 +211,7 @@ int getTotalLine(string name) {
     return(line);
 }
 
+///////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[]) {
     // Log 설정
     setlogmask (LOG_UPTO (LOG_DEBUG));
@@ -198,16 +232,119 @@ int main(int argc, char *argv[]) {
     for (u_short i = 0x01; i < 0xFF; i++) {
 		cmdAddrQueue.push(i);
 	}
+    /////////////////////////////////////////////////
+    std::vector<std::string> sitecodes;
+    size_t size = get_sitecode(sitecodes);
+    if (size == 0) {
+        syslog(LOG_ERR, "No Site Code Found!");
+        exit(EXIT_FAILURE);
+    } else {
+        syslog(LOG_INFO, "Site Code Found : %ld", size);
+        for (size_t i = 0; i < size; i++) {
+            syslog(LOG_INFO, "Site Code : %s", sitecodes[i].c_str());
+        }
+    }
+    /////////////////////////////////////////////////
+    const string sem_name = "rtu";
+    const string shm_name = "rtu";
+
+    sem_unlink(sem_name.c_str());
+    shm_unlink(shm_name.c_str());
+
+    system::SemLock lock(sem_name);
+
+    RtuStatus rstatus[size];
+    cout << sizeof(RtuStatus) << endl;
+    cout << sizeof(rstatus) << endl;
+
+    lock.lock();
+    int shm_fd;
+    RtuStatus* shm_ptr;
+    shm_fd = shm_open(shm_name.c_str(), O_RDWR | O_CREAT, 0666);
+    if (shm_fd == -1) {
+        syslog(LOG_ERR, "shm_open error!");
+        exit(EXIT_FAILURE);
+    }
+    ftruncate(shm_fd, sizeof(rstatus));
+    shm_ptr = (RtuStatus *)mmap(NULL, sizeof(rstatus), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        syslog(LOG_ERR, "mmap error!");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < size; i++) {
+        rstatus[i].siteCode.setSiteCode(sitecodes[i].c_str());
+        rstatus[i].status.setStatus(STATUS_DISCONNECTED);
+    }
+
+    memcpy((void*)shm_ptr, rstatus, sizeof(rstatus));
+
+    core::common::print_hex((DATA*)rstatus, sizeof(rstatus));
+    
+    munmap(shm_ptr, sizeof(rstatus));  // close
+    
+    lock.unlock();
+
+    /////////////////////////////////////////////////
+    // shm_unlink(shm_name.c_str());      // remove
+
     // core::formatter::RSite rSite = {.status = false, .pid = 0 };
     createDataFile(RTU_DATA);
     createDataFile(CLIENT_DATA);
 
     if(test) {
+        /////////////////////////////////////////////////
+        // Child
+        RtuStatus rtustatus[size];
+
+        system::SemLock child_lock(sem_name);
+
+        child_lock.lock();
+        int shm_fd_child;
+        void* shm_ptr_child;
+        shm_fd_child = shm_open(shm_name.c_str(), O_RDWR, 0666);
+        if (shm_fd_child == -1) {
+            syslog(LOG_ERR, "shm_open error!");
+            exit(EXIT_FAILURE);
+        }
+        ftruncate(shm_fd_child, sizeof(rtustatus));
+        shm_ptr_child = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd_child, 0);
+        if (shm_ptr_child == MAP_FAILED) {
+            syslog(LOG_ERR, "mmap error!");
+            exit(EXIT_FAILURE);
+        }
+
+        memcpy((void*)rtustatus, shm_ptr_child, sizeof(rtustatus));
+
+        core::common::print_hex((DATA*)shm_ptr_child, sizeof(rtustatus));
+
+        string code = "1000008";
+        for (size_t i = 0; i < size; i++) {
+            RtuStatus st = rtustatus[i];
+            if (code.compare(st.siteCode.getSiteCode()) == 0) {
+                rtustatus[i].status.setStatus(STATUS_CONNECTED);
+                printf("%s-%X\n", st.siteCode.getSiteCode() ,st.status.getStatus());
+            } else {
+                rtustatus[i].status.setStatus(STATUS_DISCONNECTED);
+            }
+        }
+
+        core::common::print_hex((DATA*)rtustatus, sizeof(rtustatus));
+        child_lock.unlock();
+
+        sleep(10);
+
+        // 
+        
+        munmap(shm_ptr_child, sizeof(rtustatus));  // close
+        /////////////////////////////////////////////////
+        shm_unlink(shm_name.c_str());      // remove
+
+
+
 
         cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::MAPPER)<< endl;
 
-        // read_mapper(RTU_DATA, rtu_mapper_list);
-        
         cout << getTotalLine(RTU_DATA) << endl;
         rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123447, 1001);
         write_mapper(RTU_DATA, rtu_mapper_list);
@@ -241,16 +378,6 @@ int main(int argc, char *argv[]) {
         for (auto it = pids.begin(); it!= pids.end(); it++) {
             cout << *it << endl;
         }
-
-        // mapper_vector.push_back(add_mapper(123445, 1001));
-        // mapper_vector.push_back(add_mapper(123446, 1002));
-        // mapper_vector.push_back(add_mapper(123447, 1003));
-        // mapper_vector.push_back(add_mapper(123448, 1004));
-
-        // writeMapper(RTU_DATA, mapper_vector);
-        // readMapper(RTU_DATA, mapper_vector);
-        // print_vector(mapper_vector);
-
         //////////////////////////////////////////////////////////////
         const char* site = "1000001";
         //////////////////////////////////////////////////////////////
@@ -353,6 +480,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    // /dev/mqueue/ 폴더 정리
     clearMessageQueue();
 
     pid_t pid;
@@ -372,8 +500,6 @@ int main(int argc, char *argv[]) {
                     // Generate Client Address
                     if (!cmdAddrQueue.empty()) {
                         cmdAddr = cmdAddrQueue.top();
-        syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-
                         cout << cmdAddr << endl;
                         syslog(LOG_DEBUG, "| 0x%02X |", cmdAddr);
                         cmdAddrQueue.pop();
