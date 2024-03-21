@@ -59,19 +59,35 @@ namespace core {
         };
 
         class Result {
-        protected:
+        private:
             char result;
         public:
-            virtual char getResult();
-            virtual void setResult(char);
+            char getRawResult();
+            std::string getStrResult();
+            void setResult(char);
         };
 
-        class CommandResult : public Result {
-        
+        class MsgHeader {
+        public:
+            MsgHeader();
+            ~MsgHeader();
+            void print();
+
+            DATA stx;
+            DATA cmd;
+            Address fromAddr;
+            Address toAddr;
+            unsigned short length;
         };
 
-        class ActionResult : public Result {
-
+        class MsgTail {
+        public:
+            MsgTail();
+            ~MsgTail();
+            void print();
+            
+            CRC crc8;
+            DATA etx;
         };
 
         class InitReq {
@@ -177,7 +193,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            CommandResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };
@@ -241,7 +257,7 @@ namespace core {
             SiteCode siteCode;
             Command dcCommand;
             Command acCommand;
-            CommandResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };
@@ -274,7 +290,7 @@ namespace core {
             unsigned short length;
             Action action;
             SiteCode siteCode;
-            ActionResult result;
+            Result result;
             CRC crc8;
             DATA etx;
         };
@@ -294,12 +310,17 @@ namespace core {
         };
 
         class Status {
-        public:
+        private:
             DATA status;
+        
+        public:
+            char getStatus();
+            void setStatus(DATA status);
         };
         class RtuStatus {
         public:
-            RtuStatus(SiteCode scd, Status stat);
+            RtuStatus() {}
+            ~RtuStatus() {}
             SiteCode siteCode;
             Status status;
         };
@@ -316,9 +337,8 @@ namespace core {
             Address toAddr;
             unsigned short length;
             unsigned short count;
-            // std::vector<RtuStatus> rtuStatus;
-            RtuStatus rtuStatus[];
         };
+        
         class RtuStatusResTail {
         public:
             RtuStatusResTail();

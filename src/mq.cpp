@@ -8,7 +8,7 @@ namespace core {
     namespace system {
         Mq::Mq()
         : m_mq_fd((mqd_t)-1) {
-            m_mq_attrib = {.mq_maxmsg = 10, .mq_msgsize = 1024};
+            m_mq_attrib = {.mq_maxmsg = MQ_MAXMSG, .mq_msgsize = MQ_MSGSIZE};
         }
 
         Mq::~Mq() {
@@ -83,21 +83,21 @@ namespace core {
             return true;
         }
 
-        bool Mq::recv(DATA* r, size_t len) {
+        int Mq::recv(DATA* r, size_t len) {
             mq_getattr(m_mq_fd, &m_mq_attrib);
             if (m_mq_attrib.mq_curmsgs == 0) {
-                return false;
+                return 0;
             }
             
             int rcvByte = mq_receive(m_mq_fd, (char*)r, len, 0);
             if (rcvByte < 0) {
                 syslog(LOG_ERR, "Failed mq_receive() : %s", strerror(errno));
-                return false;
+                return rcvByte;
             }
             syslog(LOG_DEBUG, "mq_receive : %d Bytes", rcvByte);
             common::print_hex(r, rcvByte);
 
-            return true;
+            return rcvByte;
         }
     }
 }

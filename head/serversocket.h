@@ -17,6 +17,7 @@ namespace core {
             
             int send(const DATA* r, size_t len);
             int recv(DATA* r, size_t len);
+            int peek(DATA* r, size_t len);
         };
     }
 }

@@ -11,35 +11,23 @@ namespace core {
         RTUclient(ServerSocket& sock);
         ~RTUclient();
 
-        void init(InitReq &msg);
+        // void init(InitReq &msg);
         void setTimeout();
         
-        /**
-         * @return true if SiteCode is available, false otherwise
-        */
-        bool isSiteCodeAvailable();
-
         /**
          * Converting Message Type to DATA type
         */
         virtual int reqMessage(DATA* buf, DATA cmd);
         virtual void run();
+
+        void setStatus(string code, DATA status);
     
-        core::common::MAPPER add_mapper(int pid, u_short addr);
-        void print_mapper(core::common::MAPPER* mapper);
-        void search_mapper(core::common::MAPPER* mapper, pid_t &pid, int idx, u_short addr);
-        void search_mapper(core::common::MAPPER* mapper, std::vector<pid_t> &pids, int idx, u_short addr);
-        bool delete_mapper(core::common::MAPPER* mapper, int idx, int pid);
-        void write_mapper(std::string filename, core::common::MAPPER* mapper);
-        void read_mapper(std::string filename, core::common::MAPPER* mapper);
-        int getTotalLine(string name);
-
     protected:
-        std::string find_rtu_addr(SiteCode scode);
-
+        int shm_fd;
+        void* shm_ptr;
     private:
-        core::common::MAPPER mapper_list[max_pool] = {0, };
-        
+        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+        // core::common::MAPPER mapper_list[MAX_POOL] = {0, };
     };
 }
 
