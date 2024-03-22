@@ -42,6 +42,9 @@ typedef u_char DATA;
 #define STATUS_CONNECTED (DATA)0x01
 #define STATUS_DISCONNECTED (DATA)0x02
 
+// Configuration file
+const std::string config_file = "server.ini";
+
 // Semaphore
 const std::string sem_rtu_status = "rtu.status";
 const std::string sem_rtu_data = "rtu.data";
@@ -56,7 +59,7 @@ const std::string CLIENT_MQ_NAME = "/client.";
 
 const int MAX_RAW_BUFF = 8192;
 
-const bool test = true;
+const bool test = false;
 const int MAX_POOL = 255;
 const int LISTEN_BACKLOG = 5;
 const u_int WAITING_SEC = 60;

@@ -511,7 +511,8 @@ namespace core {
 
     bool CMDclient::insert_cmd_log(CmdLog &log) {
         Database db;
-        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
             return false;
@@ -545,7 +546,8 @@ namespace core {
         }
         
         Database db;
-        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
             return false;

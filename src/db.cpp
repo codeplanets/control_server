@@ -13,6 +13,17 @@ namespace core {
             return m_pConn;
         }
 
+        ECODE Database::db_init() {
+            ConfigParser parser = ConfigParser(config_file);
+            string server = parser.aConfig<string>("database", "address");
+            unsigned int port = parser.aConfig<unsigned int>("database", "port");
+            string user = parser.aConfig<string>("database", "id");
+            string password = parser.aConfig<string>("database", "password");
+            string database = parser.aConfig<string>("database", "database");
+
+            return db_init(server.c_str(), port, user.c_str(), password.c_str(), database.c_str());
+        }
+
         ECODE Database::db_init(const char* server, unsigned int port, const char* user, const char* password, const char* database) {
             m_pConn = mysql_init(NULL);
             if (!m_pConn) {

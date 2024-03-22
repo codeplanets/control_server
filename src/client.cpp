@@ -69,7 +69,8 @@ namespace core {
 
     size_t Client::getcount_site() {
         Database db;
-        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
             return 0;
@@ -98,7 +99,8 @@ namespace core {
     std::string Client::find_rtu_addr(SiteCode scode) {
         string addr = NOT_FOUND;
         Database db;
-        ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+        ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
             syslog(LOG_ERR, "DB Connection Error!");
             exit(EXIT_FAILURE);
