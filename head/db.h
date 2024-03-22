@@ -4,7 +4,9 @@
 
 #include "common.h"
 #include "errorcode.h"
- 
+
+#include "configparser.h"
+
 using namespace std;
 
 namespace core {
@@ -19,6 +21,7 @@ namespace core {
 
             MYSQL* getConnection();
 
+            ECODE db_init();
             ECODE db_init(const char* server, unsigned int port, const char* user, const char* password, const char* database);
             void db_close();
 

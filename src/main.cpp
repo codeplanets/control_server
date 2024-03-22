@@ -23,6 +23,8 @@
 #include "cmd.h"
 #include "db.h"
 
+#include "configparser.h"
+
 using namespace std;
 using namespace core;
 
@@ -39,7 +41,8 @@ namespace core {
     namespace common {
         size_t getcount_site() {
             Database db;
-            ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
                 syslog(LOG_ERR, "DB Connection Error!");
                 return 0;
@@ -62,7 +65,8 @@ namespace core {
 
         size_t get_sitecode(std::vector<std::string> &sitecodes) {
             Database db;
-            ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+            ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
                 syslog(LOG_ERR, "DB Connection Error!");
                 return 0;
@@ -97,7 +101,8 @@ namespace core {
 std::string find_rtu_addr(SiteCode scode) {
     string addr = NOT_FOUND;
     Database db;
-    ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+    // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
+    ECODE ecode = db.db_init();
     if (ecode!= EC_SUCCESS) {
         syslog(LOG_ERR, "DB Connection Error!");
         exit(EXIT_FAILURE);
@@ -297,8 +302,10 @@ int main(int argc, char *argv[]) {
     setChldSignal();
     
     // Configuration
-    int rtu_port = 5900;
-    int cmd_port = 5901;
+    ConfigParser parser = ConfigParser(config_file);
+    int rtu_port = parser.aConfig<int>("rtu", "port");
+    int cmd_port = parser.aConfig<int>("client", "port");
+    cout << "Output should be 5900, 5901: " << rtu_port << ", " << cmd_port << endl; 
 
     // Set Data
     for (u_short i = 0x01; i < 0xFF; i++) {
