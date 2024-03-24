@@ -37,6 +37,7 @@ namespace core {
             }
             return 0;
         }
+        
         DATA calcCRC(DATA *buf, int size) {
             if (size < 10) {
                 return 0x00;

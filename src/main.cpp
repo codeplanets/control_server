@@ -264,7 +264,7 @@ void init_rtu_status() {
     lock.lock();
     int shm_fd;
     RtuStatus* shm_ptr;
-    shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR | O_CREAT, 0666);
+    shm_fd = shm_open(shm_rtu_status.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) {
         syslog(LOG_ERR, "shm_open error!");
         exit(EXIT_FAILURE);
@@ -535,8 +535,8 @@ int main(int argc, char *argv[]) {
     
     /**
      * [v] Setting named semaphore ( <== MUTEX )
-     * [ ] Loading ini file
-     * [ ] Getting ip, port....
+     * [v] Loading ini file
+     * [v] Getting ip, port....
      * [v] Init Database
      * [v] Clear memory
      * [v] Create parents server listener socket
@@ -552,8 +552,11 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
 
     // init 정보 수신
     DATA data[MAX_RAW_BUFF] = { 0 };
-
-    int len = newSock.peek(data, MAX_RAW_BUFF);
+    int len = 0;
+    while(len <= 0) {
+        common::sleep(100);
+        len = newSock.peek(data, MAX_RAW_BUFF);
+    }
     
     if (len > 0) {
         cout << "[" << getpid() << "] : " << endl;

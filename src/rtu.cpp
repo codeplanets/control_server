@@ -29,7 +29,7 @@ void setStatus(string code, DATA status) {
         syslog(LOG_ERR, "shm_open error!");
         exit(EXIT_FAILURE);
     }
-    ftruncate(shm_fd, sizeof(rtustatus));
+    // ftruncate(shm_fd, sizeof(rtustatus));
     shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shm_ptr == MAP_FAILED) {
         syslog(LOG_ERR, "mmap error!");
@@ -175,7 +175,7 @@ namespace core {
             syslog(LOG_ERR, "shm_open error!");
             exit(EXIT_FAILURE);
         }
-        ftruncate(shm_fd, sizeof(rtustatus));
+        // ftruncate(shm_fd, sizeof(rtustatus));
         shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
         if (shm_ptr == MAP_FAILED) {
             syslog(LOG_ERR, "mmap error!");

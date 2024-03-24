@@ -120,13 +120,13 @@ namespace core {
             int bodysize = sizeof(rtustatus);
 
             status_lock.lock();
-            shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+            shm_fd = shm_open(shm_rtu_status.c_str(), O_RDONLY, 0666);
             if (shm_fd == -1) {
                 syslog(LOG_ERR, "shm_open error!");
                 exit(EXIT_FAILURE);
             }
-            ftruncate(shm_fd, bodysize);
-            shm_ptr = mmap(NULL, bodysize, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+            // ftruncate(shm_fd, bodysize);
+            shm_ptr = mmap(NULL, bodysize, PROT_READ, MAP_SHARED, shm_fd, 0);
             if (shm_ptr == MAP_FAILED) {
                 syslog(LOG_ERR, "mmap error!");
                 exit(EXIT_FAILURE);
@@ -148,20 +148,23 @@ namespace core {
             msgHead.count = size;
             msgHead.print();
 
-            int msgSize = sizeof(msgHead);
+            int headSize = sizeof(msgHead);
+            int tailSize = sizeof(msgTail);
+            int totSize = headSize + bodysize + tailSize;
+            int idx = headSize;
             // head만큼 copy
-            memcpy(buf, (char*)&msgHead, msgSize);
+            memcpy(buf, (char*)&msgHead, headSize);
             // head 끝부분 부터 bodysize만큼 copy
-            memcpy(buf+msgSize, rtustatus, bodysize);
-            msgSize += bodysize;
+            memcpy(buf+idx, rtustatus, bodysize);
+            idx += bodysize;
+            memcpy(buf+idx, (char*)&msgTail, sizeof(msgTail));
             // head + body crc를 계산
-            msgTail.crc8.setCRC8(common::calcCRC((DATA*)&buf, msgSize));
+            common::print_hex(buf, totSize);
+            msgTail.crc8.setCRC8(common::calcCRC(buf, totSize));
+            msgTail.print();
+            memcpy(buf+idx, (char*)&msgTail, sizeof(msgTail));
 
-            memcpy(buf+msgSize, (char*)&msgTail, sizeof(msgTail));
-            // tail만큼 더해서 전체 메시지 크기 계산
-            msgSize += sizeof(msgTail);
-            common::print_hex(buf, msgSize);
-            return msgSize;
+            return totSize;
 
         } else {
             syslog(LOG_WARNING, "Unknown message type. : 0x%X", cmd);
@@ -233,8 +236,8 @@ namespace core {
                             update_cmd_log(cmdLog);
 
                             syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
-                            len = reqMessage(sock_buf, COMMAND_CLIENT_ACK);
-                            newSock.send(sock_buf, len);
+                            len = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                            newSock.send(sendbuf, len);
 
                         } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
                             syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
@@ -360,14 +363,32 @@ namespace core {
                         msg.print();
                         
                         // 값들을 저장
-                        // bool shutdown = false;
+                        bool shutdown = false;
                         this->serverAddr = msg.fromAddr;
                         this->rtuAddr = msg.toAddr;
                         this->action = msg.action;
                         this->scode = msg.siteCode;
                         DATA result = ACTION_RESULT_FAIL;
+                        
+                        // Action I, U, D
+                        char action = this->action.getAction();
+                        if (action == 'Q') {
+                            syslog(LOG_INFO, "Setup Info Action Q!");
+                            shutdown = true;
+                            result = ACTION_RESULT_OK;
+                        }
+
                         this->actResult.setResult(result);
+                        syslog(LOG_INFO, "SVR >> CMD : Setup Info Action Ack %c!", this->action.getAction());
                         sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
+                        newSock.send(sendbuf, sendByte);
+
+                        if (shutdown) {
+                            syslog(LOG_INFO, "Server Shutdown.");
+                            // TODO: kill process
+                            ::system("./pkill.sh");
+                            break;
+                        }
 
                         Mq rtu_mq;
                         pid_t pid = 0;
@@ -397,31 +418,7 @@ namespace core {
                             newSock.send(sendbuf, sendByte);
                         }
 
-                        // // Action I, U, D
-                        // char action = this->action.getAction();
-                        // if (action != 'Q') {
-                        //     if (updateDatabase(true)) {
-                        //         result = ACTION_RESULT_OK;
-                        //     } else {
-                        //         result = ACTION_RESULT_FAIL;
-                        //     }
-                        // } else {
-                        //     syslog(LOG_INFO, "Setup Info Action Q!");
-                        //     shutdown = true;
-                        //     result = ACTION_RESULT_OK;
-                        // }
                         
-                        // this->actResult.setResult(result);
-                        
-                        // syslog(LOG_INFO, "SVR >> CMD : Setup Info Action Ack %c!", this->action.getAction());
-                        // sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
-                        // newSock.send(sendbuf, sendByte);
-
-                        // if (shutdown) {
-                        //     syslog(LOG_INFO, "Server Shutdown.");
-                        //     break;
-                        //     // TODO: kill process
-                        // }
 
                     } else if (sock_buf[1] == RTU_STATUS_REQ) {
                         syslog(LOG_INFO, "CMD >> SVR : RTU Status Req.");
