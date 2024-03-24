@@ -375,13 +375,17 @@ namespace core {
                         newSock.send(sendbuf, sendByte);
 
                         u_short addr = this->rtuAddr.getAddr();
-                        pid_t pid = getpid();
+                        pid_t rtu_pid = getpid();
                         if (addr > 0) {
                             rtu_lock.lock();
                             read_mapper(RTU_DATA, mapper_list);
                             int line = getTotalLine(RTU_DATA);
-                            mapper_list[line] = add_mapper(pid, addr);
-                            write_mapper(RTU_DATA, mapper_list);
+                            pid_t pid = 0;
+                            search_mapper(mapper_list, pid, line, addr);
+                            if (pid == 0) {
+                                mapper_list[line] = add_mapper(rtu_pid, addr);
+                                write_mapper(RTU_DATA, mapper_list);
+                            }
                             print_mapper(mapper_list);
                             rtu_lock.unlock();
                         }

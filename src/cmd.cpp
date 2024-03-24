@@ -197,13 +197,17 @@ namespace core {
         createMessageQueue(CLIENT_MQ_NAME);
 
         u_short addr = this->cmdAddr.getAddr();
-        pid_t pid = getpid();
+        pid_t cmd_pid = getpid();
         if (addr > 0) {
             cmd_lock.lock();
             read_mapper(CLIENT_DATA, mapper_list);
             int line = getTotalLine(CLIENT_DATA);
-            mapper_list[line] = add_mapper(pid, addr);
-            write_mapper(CLIENT_DATA, mapper_list);
+            pid_t pid = 0;
+            search_mapper(mapper_list, pid, line, addr);
+            if (pid == 0) {
+                mapper_list[line] = add_mapper(cmd_pid, addr);
+                write_mapper(CLIENT_DATA, mapper_list);
+            }
             print_mapper(mapper_list);
             cmd_lock.unlock();
         }
