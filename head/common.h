@@ -36,6 +36,11 @@ typedef u_char DATA;
 #define RTU_STATUS_REQ (DATA)0x19
 #define RTU_STATUS_RES (DATA)0x1F
 
+#define COMMAND_RESULT_OK (DATA)0x01
+#define COMMAND_RESULT_NOT_FOUND (DATA)0x02
+#define COMMAND_RESULT_NOT_CONNECT (DATA)0x03
+#define COMMAND_RESULT_NOT_ACK (DATA)0x04
+
 #define ACTION_RESULT_OK (DATA)0x01
 #define ACTION_RESULT_FAIL (DATA)0x02
 
@@ -78,15 +83,18 @@ const int NOT_ACK = 4;
 
 namespace core {
     namespace common {
-        typedef struct mq_rtu_mapper {
+        class Mapper {
+        public:
+            Mapper() : pid(0), addr(0) {}
+
             pid_t pid;
             u_short addr;
 
-            bool operator < (const mq_rtu_mapper &var) const {
+            bool operator < (const core::common::Mapper &var) const {
                 if (pid == var.pid) return addr < var.addr;
                 return pid > var.pid;
             }
-        } MAPPER;
+        };
 
         void sleep(unsigned int dwMilliSec);
         void print_hex(DATA *buf, int size);

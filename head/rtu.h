@@ -26,7 +26,7 @@ namespace core {
         int shm_fd;
         void* shm_ptr;
     private:
-        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+        core::common::Mapper cmd_mapper_list[MAX_POOL];
     };
 }
 

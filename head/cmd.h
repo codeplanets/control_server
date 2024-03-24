@@ -14,6 +14,9 @@ namespace core {
 
         CmdLog cmdLog;
 
+        time_t timer;
+        bool waiting;
+
     public:
         CMDclient(ServerSocket& sock);
         ~CMDclient();
@@ -34,9 +37,12 @@ namespace core {
         bool update_cmd_log(CmdLog &log);
 
     protected:
+        void setWaitingTime();
+        bool checkWaitingTime(int period);
+        void stopWaitingTime();
         
     private:
-        // core::common::MAPPER mapper_list[MAX_POOL] = {0, };
+        // core::common::Mapper mapper_list[MAX_POOL];
         
     };
 }

@@ -3,7 +3,7 @@
 #include <cstdlib>      // system()
 #include <csignal>     // signal(), sigaction()
 #include <sys/wait.h>   // waitpid()
-#include <algorithm>    // erase_if()
+#include <algorithm>    // erase_if(), sort()
 #include <mqueue.h>     // mq_attr, mqd_t, mq_open() , mq_close(), mq_send(), mq_receive(), mq_unlink()
 #include <queue>
 #include <functional>
@@ -30,18 +30,22 @@ using namespace core;
 
 void sigint_handler(int signo);
 void sigchld_handler(int signo);
-void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr = 1);
+void sigsegfault_handler(int signal, siginfo_t *si, void *arg);
 void setChldSignal();
 void setIntSignal();
+void setSegFaultSignal();
+
+void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr = 1);
 ///////////////////////////////////////////////////////////////////////////////////
-std::vector<pid_t> connected;
+// std::vector<pid_t> connected;
 std::priority_queue<u_short, vector<u_short>, greater<u_short>> cmdAddrQueue;
+core::common::Mapper rtu_mapper_list[MAX_POOL];
+core::common::Mapper cmd_addr_list[MAX_POOL];
 
 namespace core {
     namespace common {
         size_t getcount_site() {
             Database db;
-            // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
             ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
                 syslog(LOG_ERR, "DB Connection Error!");
@@ -65,7 +69,6 @@ namespace core {
 
         size_t get_sitecode(std::vector<std::string> &sitecodes) {
             Database db;
-            // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
             ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
                 syslog(LOG_ERR, "DB Connection Error!");
@@ -84,7 +87,6 @@ namespace core {
             }
             try {
                 while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
-                    // syslog(LOG_DEBUG, "| %9s |", sqlrow[0]);
                     string scode = sqlrow[0];
                     sitecodes.push_back( scode );
                 }
@@ -101,7 +103,6 @@ namespace core {
 std::string find_rtu_addr(SiteCode scode) {
     string addr = NOT_FOUND;
     Database db;
-    // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
     ECODE ecode = db.db_init();
     if (ecode!= EC_SUCCESS) {
         syslog(LOG_ERR, "DB Connection Error!");
@@ -144,8 +145,8 @@ void clearMessageQueue() {
     std::system("rm -rf /dev/mqueue/client.*");
 }
 
-pid_t find_rtu_pid(core::common::MAPPER* list, int idx, u_short addr) {
-    core::common::MAPPER* map;
+pid_t find_rtu_pid(core::common::Mapper* list, int idx, u_short addr) {
+    core::common::Mapper* map;
     for (map = list; map < list + idx; map++) {
         if (map->addr == addr) {
             return map->pid;
@@ -154,21 +155,19 @@ pid_t find_rtu_pid(core::common::MAPPER* list, int idx, u_short addr) {
     return -1;
 }
 
-core::common::MAPPER rtu_mapper_list[MAX_POOL] = {0, };
-
 void createDataFile(std::string filename) {
     FILE * f = fopen(filename.c_str(), "w");
     fclose(f);
 }
 
-core::common::MAPPER add_mapper(int pid, u_short addr) {
-    core::common::MAPPER mapper;
+core::common::Mapper add_mapper(int pid, u_short addr) {
+    core::common::Mapper mapper;
     mapper.pid = pid;
     mapper.addr = addr;
     return mapper;
 }
 
-void print_mapper(core::common::MAPPER* mapper) {
+void print_mapper(core::common::Mapper* mapper) {
     for (int i = 0; i < MAX_POOL; i++) {
         if (mapper[i].pid != 0) {
             syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
@@ -176,8 +175,8 @@ void print_mapper(core::common::MAPPER* mapper) {
     }
 }
 
-void search_mapper(core::common::MAPPER* mapper, pid_t &pid, int idx, u_short addr) {
-    core::common::MAPPER* map;
+void search_mapper(core::common::Mapper* mapper, pid_t &pid, int idx, u_short addr) {
+    core::common::Mapper* map;
     for (map = mapper; map < mapper + idx; map++) {
         if (map->addr == addr) {
             syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
@@ -187,8 +186,8 @@ void search_mapper(core::common::MAPPER* mapper, pid_t &pid, int idx, u_short ad
     }
 }
 
-void search_mapper(core::common::MAPPER* mapper, std::vector<pid_t> &pids, int idx, u_short addr) {
-    core::common::MAPPER* map;
+void search_mapper(core::common::Mapper* mapper, std::vector<pid_t> &pids, int idx, u_short addr) {
+    core::common::Mapper* map;
     for (map = mapper; map < mapper + idx; map++) {
         if (map->addr == addr) {
             syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
@@ -198,18 +197,24 @@ void search_mapper(core::common::MAPPER* mapper, std::vector<pid_t> &pids, int i
     }
 }
 
-bool delete_mapper(core::common::MAPPER* mapper, int idx, int pid) {
+bool delete_mapper(core::common::Mapper* mapper, int idx, int pid) {
     bool ret = false;
-    core::common::MAPPER* map;
-    for (map = mapper; map < mapper + idx; map++) {
-        if (map->pid == pid) {
-            map->pid = 0;
+    // core::common::Mapper* map;
+    for (int i = 0; i < idx; i++) {
+        if (mapper[i].pid == pid) {
+            mapper[i].pid = 0;
             ret = true;
         }
     }
+    // for (map = mapper; map < mapper + idx; map++) {
+    //     if (map->pid == pid) {
+    //         map->pid = 0;
+    //         ret = true;
+    //     }
+    // }
     return ret;
 }
-void write_mapper(std::string filename, core::common::MAPPER* mapper) {
+void write_mapper(std::string filename, core::common::Mapper* mapper) {
     FILE * f = fopen(filename.c_str(), "w");
     for (int i = 0; i < MAX_POOL; i++) {
         if (mapper[i].pid != 0) {
@@ -219,7 +224,7 @@ void write_mapper(std::string filename, core::common::MAPPER* mapper) {
     fclose(f);
 }
 
-void read_mapper(std::string filename, core::common::MAPPER* mapper) {
+void read_mapper(std::string filename, core::common::Mapper* mapper) {
     FILE * f = fopen(filename.c_str(), "r");
 
     for (int i = 0; i < MAX_POOL; i++) {
@@ -250,17 +255,10 @@ void init_rtu_status() {
         exit(EXIT_FAILURE);
     } else {
         syslog(LOG_INFO, "Site Code Found : %ld", size);
-        for (size_t i = 0; i < size; i++) {
-            syslog(LOG_INFO, "Site Code : %s", sitecodes[i].c_str());
-        }
     }
 
     system::SemLock lock(sem_rtu_status);
-
     RtuStatus rstatus[size];
-    cout << sizeof(RtuStatus) << endl;
-    cout << sizeof(rstatus) << endl;
-
     lock.lock();
     int shm_fd;
     RtuStatus* shm_ptr;
@@ -280,11 +278,7 @@ void init_rtu_status() {
         rstatus[i].status.setStatus(STATUS_DISCONNECTED);
     }
     memcpy((void*)shm_ptr, rstatus, sizeof(rstatus));
-
-    // core::common::print_hex((DATA*)rstatus, sizeof(rstatus));
-    
     munmap(shm_ptr, sizeof(rstatus));  // close
-    
     lock.unlock();
 }
 
@@ -300,6 +294,7 @@ int main(int argc, char *argv[]) {
     // Zombie Process 방지 Signal 등록
     setIntSignal();
     setChldSignal();
+    setSegFaultSignal();
     
     // Configuration
     ConfigParser parser = ConfigParser(config_file);
@@ -308,10 +303,10 @@ int main(int argc, char *argv[]) {
     cout << "Output should be 5900, 5901: " << rtu_port << ", " << cmd_port << endl; 
 
     // Set Data
-    for (u_short i = 0x01; i < 0xFF; i++) {
-		cmdAddrQueue.push(i);
+    for (int i = 0; i < 255; i++) {
+		cmd_addr_list[i].pid = 0;
+		cmd_addr_list[i].addr = i+0x2001;
 	}
-    
     sem_unlink(sem_rtu_status.c_str());
     shm_unlink(shm_rtu_status.c_str());
 
@@ -320,15 +315,15 @@ int main(int argc, char *argv[]) {
     createDataFile(CLIENT_DATA);
 
     if(test) {
-        cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::MAPPER)<< endl;
+        cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::Mapper)<< endl;
 
         cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123447, 1001);
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123447, 1003);
         write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
         cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1001);
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1002);
         write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
@@ -338,12 +333,12 @@ int main(int argc, char *argv[]) {
         print_mapper(rtu_mapper_list);
 
         cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1001);
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1004);
         write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
 
         cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123446, 1001);
+        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(1, 1000);
         write_mapper(RTU_DATA, rtu_mapper_list);
         print_mapper(rtu_mapper_list);
         cout << "/////////////////////////////////////////" << endl;
@@ -474,19 +469,13 @@ int main(int argc, char *argv[]) {
             while((rtu_running = rtu_server.accept(new_sock)) || (cmd_running = cmd_server.accept(new_sock))) {
                 u_short cmdAddr = 1;
                 if (cmd_running) {
-                    // Generate Client Address
-                    if (!cmdAddrQueue.empty()) {
-                        cmdAddr = cmdAddrQueue.top();
-                        cout << cmdAddr << endl;
-                        syslog(LOG_DEBUG, "| 0x%02X |", cmdAddr);
-                        cmdAddrQueue.pop();
-                    }
-
-                    if (cmdAddrQueue.empty()) {
-                        for (u_short i = 0x01; i < 0xFF; i++) {
-                            cmdAddrQueue.push(i);
+                    for (core::common::Mapper cmd : cmd_addr_list) {
+                        if (cmd.pid == 0) {
+                            cmdAddr = cmd.addr;
+                            break;
                         }
                     }
+                    syslog(LOG_DEBUG, "| 0x%02X |", cmdAddr);
                 }
                 
                 pid = fork();
@@ -512,22 +501,22 @@ int main(int argc, char *argv[]) {
                     continue;
                 } else {
                     syslog(LOG_DEBUG, "[Parent process] : child pid = %d", pid);
-
-                    connected.push_back(pid);
-
-                    if (connected.size() > 0) {
-                        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
-                        for (size_t i = 0; i < connected.size(); i++) {
-                            syslog(LOG_DEBUG, " -pid : %d", connected.at(i));
+                    if (cmd_running) {
+                        for (int i = 0; i < 255; i++) {
+                            if (cmd_addr_list[i].addr == cmdAddr) {
+                                cmd_addr_list[i].pid = pid;
+                                break;
+                            }
                         }
+                        syslog(LOG_DEBUG, "| pid %d |", pid);
                     }
+
                     new_sock.close();
                     common::sleep(500);
                 }
             }
         }
     } catch (SocketException& se) {
-            // std::cout << "Exception was caught : [" << se.code() << "]" << se.description() << endl;
             syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : [%d] %s",__FILE__, __LINE__, se.code(), se.description().c_str());
             common::close_sem();
             exit(EXIT_SUCCESS);
@@ -570,21 +559,12 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
 
             if (head.cmd == INIT_REQ) {  // RTUs
                 syslog(LOG_DEBUG, "Start RTU Init Request");
-                // InitReq msg;
-                // memcpy((void*)&msg, data, len);
-                // if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
-                //     syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, sizeof(msg)), msg.crc8.getCRC8());
-                // }
-                // msg.print();
-
                 RTUclient rtu(newSock);
-                // rtu.init(msg);
                 rtu.setTimeout();
                 rtu.run();
 
             } else if (head.cmd == CLIENT_INIT_REQ) {    // Cmd Clients
                 syslog(LOG_DEBUG, "Client Init Request");
-                // TODO : CommandClients
                 ClientInitReq msg;
                 memcpy((void*)&msg, data, len);
                 if (common::checkCRC((DATA*)&msg, sizeof(msg), msg.crc8.getCRC8()) == false) {
@@ -624,22 +604,21 @@ void sigchld_handler(int signo) {
         syslog(LOG_DEBUG, "PID         : %d", spid);
         syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
         syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
-        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
-        std::erase_if(connected, [&spid](const auto& ele) {
-            return ele == spid;
+
+        for (int i = 0; i < 255; i++) {
+            if (cmd_addr_list[i].pid == spid) {
+                cmd_addr_list[i].pid = 0;
+                break;
             }
-        );
+        }
 
         string file = "";
         
         system::SemLock rtu_lock(sem_rtu_data);
         system::SemLock cmd_lock(sem_cmd_data);
-
+        core::common::Mapper cmd_mapper_list[MAX_POOL];
         rtu_lock.lock();
         read_mapper(RTU_DATA, rtu_mapper_list);
-        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
-        read_mapper(CLIENT_DATA, cmd_mapper_list);
-
         if (getTotalLine(RTU_DATA) > 0) {
             if (delete_mapper(rtu_mapper_list, getTotalLine(RTU_DATA), spid)) {
                 write_mapper(RTU_DATA, rtu_mapper_list);
@@ -653,6 +632,7 @@ void sigchld_handler(int signo) {
         rtu_lock.unlock();
 
         cmd_lock.lock();
+        read_mapper(CLIENT_DATA, cmd_mapper_list);
         if (getTotalLine(CLIENT_DATA) > 0) {
             if (delete_mapper(cmd_mapper_list, getTotalLine(CLIENT_DATA), spid)) {
                 write_mapper(CLIENT_DATA, cmd_mapper_list);
@@ -664,9 +644,6 @@ void sigchld_handler(int signo) {
             }
         }
         cmd_lock.unlock();
-        
-        syslog(LOG_DEBUG, "Child Count : %ld", connected.size());
-        cout << cmdAddrQueue.top() << endl;
     }
 }
 
@@ -688,6 +665,23 @@ void sigint_handler(int signo) {
     syslog(LOG_DEBUG, "Exit Value  : %d", WEXITSTATUS(status));
     syslog(LOG_DEBUG, "Exit Stat   : %d", WIFEXITED(status));
 
+    common::close_sem();
+    closelog();
+    exit(EXIT_SUCCESS);
+}
+
+void setSegFaultSignal() {
+    struct sigaction act;
+    memset(&act, 0, sizeof(struct sigaction));
+    sigemptyset(&act.sa_mask);
+    act.sa_sigaction = sigsegfault_handler;
+    act.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &act, NULL);
+}
+
+void sigsegfault_handler(int signal, siginfo_t *si, void *arg) {
+    printf("Caught segfault at address %p\n", si->si_addr);
+    
     common::close_sem();
     closelog();
     exit(EXIT_SUCCESS);

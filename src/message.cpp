@@ -44,7 +44,6 @@ namespace core {
         }
         void SiteCode::setSiteCode(const char* code) {
             strncpy(siteCode, code, 7);
-            std::cout << "setSiteCode: " << getSiteCode() << std::endl;
         }
         //////////////////////////////////////////////
         // Class Command

@@ -204,14 +204,6 @@ namespace core {
         system::SemLock rtu_lock(sem_rtu_data);
         system::SemLock cmd_lock(sem_cmd_data);
 
-        // int len = reqMessage(sendbuf, INIT_RES);
-        // newSock.send(sendbuf, len);
-
-        // if (isSiteCodeAvailable() == false) {
-        //     common::sleep(5000);
-        //     return;
-        // }
-
         createMessageQueue(RTU_MQ_NAME);
 
         while (true) {
@@ -265,21 +257,6 @@ namespace core {
                             pid_t pid = 0;
                             std::vector<pid_t> pids;
                             cmd_lock.lock();
-                            // data에서 pid를 read.
-                            // read_mapper(CLIENT_DATA, cmd_mapper_list);
-                            // int line = getTotalLine(CLIENT_DATA);
-                            // core::common::MAPPER* map;
-                            // for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
-                            //     if (map->pid != 0) {
-                            //         if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
-                            //             syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", map->pid);
-                            //             cmd_mq.send(sendbuf, sendByte);
-                            //             cmd_mq.close();
-                            //         } else {
-                            //             syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
-                            //         }
-                            //     }
-                            // }
                             read_mapper(CLIENT_DATA, cmd_mapper_list);
                             int line = getTotalLine(CLIENT_DATA);
                             cmd_lock.unlock();
@@ -337,8 +314,6 @@ namespace core {
                         head.print();
 
                         msgSize = sizeof(head) + head.length + sizeof(MsgTail);
-                        // DATA msg_buf[MAX_RAW_BUFF] = {0x00,};
-                        // memcpy((void*)msg_buf, sock_buf, msgSize);
                         common::print_hex(sock_buf, msgSize);
                     } else {
                         msgSize = rcvByte;
