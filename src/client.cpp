@@ -32,6 +32,9 @@ namespace core {
     bool Client::createMessageQueue(std::string mq_name) {
         bool isCreated = mq.open(mq_name, getpid());
         m_isCreatedMq = isCreated;
+        if (m_isCreatedMq) {
+            mq.close();
+        }
         return isCreated;
     }
 

@@ -29,10 +29,7 @@ namespace core {
             if (size == 2) {
                 u_short x = 0;
                 memcpy(&x, be, size);
-                // std::cout << "BigEndian: " << x << std::endl;
-                // x = x & 0xFF0F; // Section clear
                 x = ((x & 0xFF00) >> 8) | ((x & 0x00FF) << 8);
-                // std::cout << "LittleEndian: " << x << std::endl;
                 return x;
             }
             return 0;

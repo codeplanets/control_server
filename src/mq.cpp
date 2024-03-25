@@ -8,7 +8,7 @@ namespace core {
     namespace system {
         Mq::Mq()
         : m_mq_fd((mqd_t)-1) {
-            m_mq_attrib = {.mq_maxmsg = MQ_MAXMSG, .mq_msgsize = MQ_MSGSIZE};
+            m_mq_attrib = {.mq_maxmsg = MQ_MAXMSG, .mq_msgsize = MQ_CMD_MSGSIZE};
         }
 
         Mq::~Mq() {
@@ -19,22 +19,25 @@ namespace core {
 
             // message queue 이름 설정 ("mq_" + pid)
             m_mqname = make_mq_name(name, pid);
-            syslog(LOG_INFO, "Message Queue name : %s", m_mqname.c_str());
+            // syslog(LOG_INFO, "Message Queue name : %s", m_mqname.c_str());
+            if (name == CLIENT_MQ_NAME) {
+                m_mq_attrib.mq_msgsize = MQ_CMD_MSGSIZE;
+            }
 
             // message queue 생성
             m_mq_fd = ::mq_open(m_mqname.c_str(), O_CREAT|O_EXCL|O_RDWR, S_IRUSR|S_IWUSR, &m_mq_attrib);
             if (m_mq_fd > 0) {
-                syslog(LOG_DEBUG, "Create Message Queue[%s] OK!", m_mqname.c_str());
+                // syslog(LOG_DEBUG, "Create Message Queue[%s] OK!", m_mqname.c_str());
             } else {
                 // 이미 message queue가 생성되어 있으면 Open
                 if (errno == EEXIST) {
-                    syslog(LOG_WARNING, "Exist MQ, Open......");
+                    // syslog(LOG_WARNING, "Exist MQ, Open......");
                     m_mq_fd = ::mq_open(m_mqname.c_str(), O_RDWR);
                     if (m_mq_fd == (mqd_t)-1) {
                         syslog(LOG_ERR, "Failed mq_open() : %s", strerror(errno));
                         return false;
                     }
-                    syslog(LOG_DEBUG, "Open Message Queue[%s] OK!", m_mqname.c_str());
+                    // syslog(LOG_DEBUG, "Open Message Queue[%s] OK!", m_mqname.c_str());
                 } else {
                     syslog(LOG_ERR, "Failed mq_open() : %s", strerror(errno));
                     return false;
@@ -46,11 +49,8 @@ namespace core {
         void Mq::close(void) {
             // close message queue
             if (m_mq_fd != (mqd_t)-1) {
-                if (mq_close(m_mq_fd) < 0) {
-                    // syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
-                } else {
-                    syslog(LOG_DEBUG, "mq_close()");
-                }
+                mq_close(m_mq_fd);
+                // syslog(LOG_ERR, "Failed mq_close() : %s", strerror(errno));
 
                 // remove message queue
                 // if (mq_unlink(m_mqname.c_str()) < 0) {
@@ -91,7 +91,7 @@ namespace core {
             
             int rcvByte = mq_receive(m_mq_fd, (char*)r, len, 0);
             if (rcvByte < 0) {
-                syslog(LOG_ERR, "Failed mq_receive() : %s", strerror(errno));
+                syslog(LOG_ERR, "Failed mq_receive() : %s, %d Bytes", strerror(errno), rcvByte);
                 return rcvByte;
             }
             syslog(LOG_DEBUG, "mq_receive : %d Bytes", rcvByte);

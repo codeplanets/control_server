@@ -243,50 +243,55 @@ namespace core {
             // Message Queue 수신 처리
             try {
                 errno = 0;
-                int sendByte = 0;
-                int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
-                if (rcvByte > 0) {
-                    if (mq_buf[0] == STX) {
-                        if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
-                            syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
-                            common::print_hex(mq_buf, rcvByte);
+                if (mq.open(CLIENT_MQ_NAME, getpid())) {
+                    int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
+                    mq.close();
+                    int sendByte = 0;
+                    if (rcvByte > 0) {
+                        if (mq_buf[0] == STX) {
+                            if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
+                                syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
+                                common::print_hex(mq_buf, rcvByte);
 
-                            CommandRtuAck msg;
-                            assert(rcvByte == sizeof(msg));
-                            memcpy((void*)&msg, mq_buf, rcvByte);
-                            if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
-                                syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                                CommandRtuAck msg;
+                                assert(rcvByte == sizeof(msg));
+                                memcpy((void*)&msg, mq_buf, rcvByte);
+                                if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
+                                    syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                                }
+                                msg.print();
+
+                                this->scode = msg.siteCode;
+                                this->dcCommand = msg.dcCommand;
+                                this->acCommand = msg.acCommand;
+                                this->cmdResult = msg.result;
+
+                                setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
+                                update_cmd_log(cmdLog);
+
+                                syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
+                                sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                                newSock.send(sendbuf, sendByte);
+
+                            } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
+                                syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
+                                common::print_hex(mq_buf, rcvByte);
+                                newSock.send(mq_buf, rcvByte);
+
+                            } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
+                                syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
+                                // common::print_hex(mq_buf, rcvByte);
+                                newSock.send(mq_buf, rcvByte);
+
+                            } else {
+                                syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                             }
-                            msg.print();
-
-                            this->scode = msg.siteCode;
-                            this->dcCommand = msg.dcCommand;
-                            this->acCommand = msg.acCommand;
-                            this->cmdResult = msg.result;
-
-                            setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
-                            update_cmd_log(cmdLog);
-
-                            syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
-                            sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
-                            newSock.send(sendbuf, sendByte);
-
-                        } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
-                            syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
-                            common::print_hex(mq_buf, rcvByte);
-                            newSock.send(mq_buf, rcvByte);
-
-                        } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
-                            syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
-                            common::print_hex(mq_buf, rcvByte);
-                            newSock.send(mq_buf, rcvByte);
-
-                        } else {
-                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
+                        }else {
+                            syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                         }
-                    }else {
-                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                     }
+                } else {
+                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", getpid());
                 }
             } catch (exception& e) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : %s",__FILE__, __LINE__, e.what());

@@ -321,7 +321,7 @@ namespace core {
         public:
             RtuStatus() {}
             ~RtuStatus() {}
-            SiteCode siteCode;
+            Address siteid;
             Status status;
         };
 

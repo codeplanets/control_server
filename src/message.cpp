@@ -2,7 +2,6 @@
 #include <iostream>
 
 namespace core {
-    
     namespace formatter {
         //////////////////////////////////////////////
         // Class Address

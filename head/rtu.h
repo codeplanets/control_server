@@ -20,7 +20,7 @@ namespace core {
         virtual int reqMessage(DATA* buf, DATA cmd);
         virtual void run();
 
-        void setStatus(string code, DATA status);
+        void setStatus(u_short code, DATA status);
     
     protected:
         int shm_fd;

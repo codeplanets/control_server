@@ -69,8 +69,9 @@ const int MAX_POOL = 255;
 const int LISTEN_BACKLOG = 5;
 const u_int WAITING_SEC = 60;
 const u_int CMD_WAITING_SEC = 600;
-const long MQ_MAXMSG = 10;
-const long MQ_MSGSIZE = 2048;
+const long MQ_MAXMSG = 2;
+const long MQ_MSGSIZE = 800;
+const long MQ_CMD_MSGSIZE = 800;
 
 const std::string NOT_FOUND = "NONE";
 const std::string RTU_DATA = "./data/rtu.data";
@@ -104,6 +105,7 @@ namespace core {
 
         size_t getcount_site();
         size_t get_sitecode(std::vector<std::string> &sitecodes);
+        size_t get_siteid(std::vector<std::string> &siteids);
     }
 }
 
