@@ -2,7 +2,6 @@
 #include <signal.h>
 
 #include "cmd.h"
-#include "packetizer.h"
 #include "socketexception.h"
 
 void cmd_timeout_handler(int sig) {
@@ -112,9 +111,9 @@ namespace core {
             system::SemLock status_lock(sem_rtu_status);
             size_t size = getcount_site();
             if (size == 0) {
-                syslog(LOG_ERR, "No Site Code Found!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : Not found Site Code! : %s",__FILE__, __LINE__, strerror(errno));
             } else {
-                syslog(LOG_INFO, "Site Code Found : %ld", size);
+                syslog(LOG_DEBUG, "Site Code Found : %ld", size);
             }
             RtuStatus rtustatus[size];
             int bodysize = sizeof(rtustatus);
@@ -122,13 +121,13 @@ namespace core {
             status_lock.lock();
             shm_fd = shm_open(shm_rtu_status.c_str(), O_RDONLY, 0666);
             if (shm_fd == -1) {
-                syslog(LOG_ERR, "shm_open error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : shm_open() error! : %s",__FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             // ftruncate(shm_fd, bodysize);
             shm_ptr = mmap(NULL, bodysize, PROT_READ, MAP_SHARED, shm_fd, 0);
             if (shm_ptr == MAP_FAILED) {
-                syslog(LOG_ERR, "mmap error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : mmap() error! : %s",__FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             memcpy((void*)rtustatus, shm_ptr, bodysize);
@@ -226,7 +225,6 @@ namespace core {
                 mapper_list[line] = add_mapper(cmd_pid, addr);
                 write_mapper(CLIENT_DATA, mapper_list);
             }
-            cout << "CMDclient::run" << endl;
             print_mapper(mapper_list);
             cmd_lock.unlock();
         }
@@ -280,7 +278,7 @@ namespace core {
 
                             } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
                                 syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
-                                // common::print_hex(mq_buf, rcvByte);
+                                common::print_hex(mq_buf, rcvByte);
                                 newSock.send(mq_buf, rcvByte);
 
                             } else {
@@ -307,7 +305,7 @@ namespace core {
                     if (errno == EAGAIN) {
                         continue;   // 다시 mq > socket 순으로 데이터 수신
                     } else {
-                        syslog(LOG_ERR, "CMDclient::run : %s", strerror(errno));
+                        syslog(LOG_ERR, "[Error : %s:%d] Failed : peek() error! : %s",__FILE__, __LINE__, strerror(errno));
                         break;
                     }
                 } else if (rcvByte == 0) {
@@ -380,9 +378,7 @@ namespace core {
                             int line = getTotalLine(RTU_DATA);
                             rtu_lock.unlock();
                             search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
-                            cout << "RTU PIDs : ";
                             for (auto it = pids.begin(); it!= pids.end(); it++) {
-                                cout << *it << " ";
                                 pid = *it;
                                 if (pid != 0) {
                                     syslog(LOG_INFO, "SVR >> MQ : Command RTU. : %d", pid);
@@ -391,7 +387,6 @@ namespace core {
                                     rtu_mq.close();
                                 }
                             }
-                            cout << endl;
 
                             if (pid == 0) {
                                 syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
@@ -455,9 +450,7 @@ namespace core {
                             int line = getTotalLine(RTU_DATA);
                             rtu_lock.unlock();
                             search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
-                            cout << "RTU PIDs : ";
                             for (auto it = pids.begin(); it!= pids.end(); it++) {
-                                cout << *it << " ";
                                 pid = *it;
                                 if (pid != 0) {
                                     syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", pid);
@@ -571,7 +564,7 @@ namespace core {
         Database db;
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
 
@@ -591,7 +584,7 @@ namespace core {
 
         ecode = db.db_query(insert.c_str());
         if (ecode != EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Insert Query Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Insert Query Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         return true;
@@ -605,7 +598,7 @@ namespace core {
         Database db;
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         
@@ -629,7 +622,7 @@ namespace core {
 
         ecode = db.db_query(insert.c_str());
         if (ecode != EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Update Query Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Update Query Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         return true;

@@ -15,7 +15,6 @@
 #include "main.h"
 #include "serversocket.h"
 #include "socketexception.h"
-#include "connection.h"
 #include "sem.h"
 #include "mq.h"
 #include "message.h"
@@ -28,19 +27,7 @@
 using namespace std;
 using namespace core;
 
-void sigint_handler(int signo);
-void sigchld_handler(int signo);
-void sigsegfault_handler(int signal, siginfo_t *si, void *arg);
-void setChldSignal();
-void setIntSignal();
-void setSegFaultSignal();
-
-void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr = 1);
-///////////////////////////////////////////////////////////////////////////////////
-// std::vector<pid_t> connected;
-std::priority_queue<u_short, vector<u_short>, greater<u_short>> cmdAddrQueue;
-core::common::Mapper rtu_mapper_list[MAX_POOL];
-core::common::Mapper cmd_addr_list[MAX_POOL];
+void start_child(core::server::ServerSocket newSock, int pid, u_short cmdAddr = 1);
 
 namespace core {
     namespace common {
@@ -48,7 +35,7 @@ namespace core {
             Database db;
             ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
-                syslog(LOG_ERR, "DB Connection Error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
                 return 0;
             }
             string query = "SELECT COUNT(*) FROM RSite;";
@@ -61,12 +48,10 @@ namespace core {
                 pRes = db.db_get_result(query.c_str());
                 sqlrow = db.db_fetch_row(pRes);
                 if (sqlrow) {
-                    cout << sqlrow[0] << endl;
                     return atoi(sqlrow[0]);
                 }
             } catch (exception& e) {
-                syslog(LOG_ERR, "DB Fetch Error!");
-                cout << e.what() << endl;
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Fetch Error! : %s",__FILE__, __LINE__, strerror(errno));
             }
             
             return 0;
@@ -76,7 +61,7 @@ namespace core {
             Database db;
             ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
-                syslog(LOG_ERR, "DB Connection Error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
                 return 0;
             }
             string query = "SELECT SiteCode FROM RSite ORDER BY SiteCode;";
@@ -87,7 +72,7 @@ namespace core {
             MYSQL_RES* pRes;
             ecode = db.db_query(query.c_str(), &pRes);
             if (ecode != EC_SUCCESS) {
-                syslog(LOG_ERR, "DB Query Error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Query Error! : %s",__FILE__, __LINE__, strerror(errno));
                 return 0;
             }
             try {
@@ -96,8 +81,7 @@ namespace core {
                     sitecodes.push_back( scode );
                 }
             } catch (exception& e) {
-                syslog(LOG_ERR, "DB Fetch Error!");
-                cout << e.what() << endl;
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Fetch Error! : %s",__FILE__, __LINE__, strerror(errno));
             }
             
             return sitecodes.size();
@@ -106,7 +90,7 @@ namespace core {
             Database db;
             ECODE ecode = db.db_init();
             if (ecode!= EC_SUCCESS) {
-                syslog(LOG_ERR, "DB Connection Error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
                 return 0;
             }
             string query = "SELECT SiteID FROM RSite ORDER BY SiteID;";
@@ -117,7 +101,7 @@ namespace core {
             MYSQL_RES* pRes;
             ecode = db.db_query(query.c_str(), &pRes);
             if (ecode != EC_SUCCESS) {
-                syslog(LOG_ERR, "DB Query Error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Query Error! : %s",__FILE__, __LINE__, strerror(errno));
                 return 0;
             }
             try {
@@ -126,8 +110,7 @@ namespace core {
                     siteids.push_back( sid );
                 }
             } catch (exception& e) {
-                syslog(LOG_ERR, "DB Fetch Error!");
-                cout << e.what() << endl;
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Fetch Error! : %s",__FILE__, __LINE__, strerror(errno));
             }
             
             return siteids.size();
@@ -135,249 +118,12 @@ namespace core {
     }
 }
 
-std::string find_rtu_addr(SiteCode scode) {
-    string addr = NOT_FOUND;
-    Database db;
-    ECODE ecode = db.db_init();
-    if (ecode!= EC_SUCCESS) {
-        syslog(LOG_ERR, "DB Connection Error!");
-        exit(EXIT_FAILURE);
-    }
-    char* siteCode = scode.getSiteCode();
-    string query = "select * from RSite";
-    query += " where SiteCode = '";
-    query += siteCode;
-    query += "';";
-    syslog(LOG_DEBUG, "Query : %s", query.c_str());
-    delete[] siteCode;
-
-    // Query Data
-    MYSQL_ROW sqlrow;
-    MYSQL_RES* pRes;
-    ecode = db.db_query(query.c_str(), &pRes);
-    if (ecode != EC_SUCCESS) {
-        syslog(LOG_ERR, "DB Query Error!");
-        exit(EXIT_FAILURE);
-    }
-    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    syslog(LOG_DEBUG, "| SiteCode | SiteName | SiteID | Basin |");
-    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    try {
-        while ((sqlrow = db.db_fetch_row(pRes)) != NULL) {
-            syslog(LOG_DEBUG, "|%9s |%9s |%7s |%6s |", sqlrow[0], sqlrow[1], sqlrow[2], sqlrow[3]);
-            addr = sqlrow[2];
-        }
-    } catch (exception& e) {
-        syslog(LOG_ERR, "DB Fetch Error!");
-        cout << e.what() << endl;
-    }
-    syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
-    return addr;
-}
-///////////////////////////////////////////////////////////////////////////////////
-void clearMessageQueue() {
-    std::system("rm -rf /dev/mqueue/rtu.*");
-    std::system("rm -rf /dev/mqueue/client.*");
-    std::system("rm -rf ./data/*.data");
-}
-
-pid_t find_rtu_pid(core::common::Mapper* list, int idx, u_short addr) {
-    core::common::Mapper* map;
-    for (map = list; map < list + idx; map++) {
-        if (map->addr == addr) {
-            return map->pid;
-        }
-    }
-    return -1;
-}
-
-void createDataFile(std::string filename) {
-    FILE * f = fopen(filename.c_str(), "w");
-    fclose(f);
-}
-
-core::common::Mapper add_mapper(int pid, u_short addr) {
-    core::common::Mapper mapper;
-    mapper.pid = pid;
-    mapper.addr = addr;
-    return mapper;
-}
-
-void print_mapper(core::common::Mapper* mapper) {
-    for (int i = 0; i < MAX_POOL; i++) {
-        if (mapper[i].pid != 0) {
-            syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
-        }
-    }
-}
-
-void search_mapper(core::common::Mapper* mapper, pid_t &pid, int idx, u_short addr) {
-    core::common::Mapper* map;
-    for (map = mapper; map < mapper + idx; map++) {
-        if (map->addr == addr) {
-            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
-
-            pid = map->pid;
-        }
-    }
-}
-
-void search_mapper(core::common::Mapper* mapper, std::vector<pid_t> &pids, int idx, u_short addr) {
-    core::common::Mapper* map;
-    for (map = mapper; map < mapper + idx; map++) {
-        if (map->addr == addr) {
-            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
-
-            pids.push_back(map->pid);
-        }
-    }
-}
-
-void search_mapper(core::common::Mapper* mapper, u_short &addr, pid_t pid, int idx) {
-    core::common::Mapper* map;
-    for (map = mapper; map < mapper + idx; map++) {
-        if (map->pid == pid) {
-            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
-
-            addr = map->addr;
-        }
-    }
-}
-
-bool delete_mapper(core::common::Mapper* mapper, int idx, int pid) {
-    bool ret = false;
-    // core::common::Mapper* map;
-    for (int i = 0; i < idx; i++) {
-        if (mapper[i].pid == pid) {
-            mapper[i].pid = 0;
-            ret = true;
-        }
-    }
-    // for (map = mapper; map < mapper + idx; map++) {
-    //     if (map->pid == pid) {
-    //         map->pid = 0;
-    //         ret = true;
-    //     }
-    // }
-    return ret;
-}
-
-void write_mapper(std::string filename, core::common::Mapper* mapper) {
-    FILE * f = fopen(filename.c_str(), "w");
-    for (int i = 0; i < MAX_POOL; i++) {
-        if (mapper[i].pid != 0) {
-            fprintf(f, "%d %hd\n", mapper[i].pid, mapper[i].addr);
-        }
-    }
-    fclose(f);
-}
-
-void read_mapper(std::string filename, core::common::Mapper* mapper) {
-    FILE * f = fopen(filename.c_str(), "r");
-
-    for (int i = 0; i < MAX_POOL; i++) {
-        // if (mapper[i].pid != 0 && mapper[i].addr != 0) {
-        fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
-        // }
-    }
-    fclose(f);
-}
-
-int getTotalLine(string name) {
-    FILE *fp;
-    int line=0;
-    char c;
-    fp = fopen(name.c_str(), "r");
-    while ((c = fgetc(fp)) != EOF) {
-        if (c == '\n') {
-            line++;
-        }
-    }
-    fclose(fp);
-    return(line);
-}
-
-void init_rtu_status() {
-    // std::vector<std::string> sitecodes;
-    // size_t size = core::common::get_sitecode(sitecodes);
-    std::vector<std::string> siteids;
-    size_t size = core::common::get_siteid(siteids);
-    if (size == 0) {
-        syslog(LOG_ERR, "No Site ID Found!");
-        exit(EXIT_FAILURE);
-    } else {
-        syslog(LOG_INFO, "Site ID Found : %ld", size);
-    }
-
-    system::SemLock status_lock(sem_rtu_status);
-    RtuStatus rtustatus[size];
-    status_lock.lock();
-    int shm_fd = shm_open(shm_rtu_status.c_str(), O_CREAT | O_RDWR, 0666);
-    if (shm_fd == -1) {
-        syslog(LOG_ERR, "shm_open error!");
-        exit(EXIT_FAILURE);
-    }
-    ftruncate(shm_fd, sizeof(rtustatus));
-    RtuStatus* shm_ptr = (RtuStatus *)mmap(NULL, sizeof(rtustatus), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if (shm_ptr == MAP_FAILED) {
-        syslog(LOG_ERR, "mmap error!");
-        exit(EXIT_FAILURE);
-    }
-    for (size_t i = 0; i < size; i++) {
-        rtustatus[i].siteid.setAddr(siteids[i].c_str(), RTU_ADDRESS);
-        rtustatus[i].status.setStatus(STATUS_DISCONNECTED);
-    }
-    memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
-    munmap(shm_ptr, sizeof(rtustatus));  // close
-    status_lock.unlock();
-}
-
-void set_rtu_status(u_short sid, DATA status) {
-    /////////////////////////////////////////////////
-    // Child
-    core::system::SemLock status_lock(sem_rtu_status);
-    size_t size = core::common::getcount_site();
-    if (size == 0) {
-        syslog(LOG_ERR, "NotFound Site ID!");
-        return;
-    } else {
-        syslog(LOG_INFO, "Found Site ID : %ld", size);
-    }
-    RtuStatus rtustatus[size];
-    status_lock.lock();
-
-    int shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
-    if (shm_fd == -1) {
-        syslog(LOG_ERR, "shm_open error!");
-        exit(EXIT_FAILURE);
-    }
-    // ftruncate(shm_fd, sizeof(rtustatus));
-    void* shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if (shm_ptr == MAP_FAILED) {
-        syslog(LOG_ERR, "mmap error!");
-        exit(EXIT_FAILURE);
-    }
-    memcpy((void*)rtustatus, shm_ptr, sizeof(rtustatus));
-    for (size_t i = 0; i < size; i++) {
-        RtuStatus st = rtustatus[i];
-        if (sid == st.siteid.getAddr()) {
-            rtustatus[i].status.setStatus(status);
-            printf("%02X-0x%0X>0x%0X\n", st.siteid.getAddr() ,st.status.getStatus(), status);
-        }
-    }
-    memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
-    munmap(shm_ptr, sizeof(rtustatus));  // close
-    status_lock.unlock();
-}
-
 ///////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[]) {
     // Log 설정
-    setlogmask (LOG_UPTO (LOG_DEBUG));
+    setlogmask (LOG_UPTO (LOG_INFO));
     openlog("Control Server", LOG_CONS|LOG_PERROR, LOG_USER);
-
-    syslog(LOG_INFO, "Running server!");
-    syslog(LOG_DEBUG, "Setting....");
+    syslog(LOG_INFO, "Running Control Server!");
 
     // Zombie Process 방지 Signal 등록
     setIntSignal();
@@ -388,17 +134,22 @@ int main(int argc, char *argv[]) {
     ConfigParser parser = ConfigParser(config_file);
     int rtu_port = parser.aConfig<int>("rtu", "port");
     int cmd_port = parser.aConfig<int>("client", "port");
-    cout << "Output should be 5900, 5901: " << rtu_port << ", " << cmd_port << endl; 
+
+    // semaphore 정리
+    sem_unlink(sem_rtu_status.c_str());
+    shm_unlink(shm_rtu_status.c_str());
+
+    // Multiple Running 방지
+    if (common::isRunning() == true) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : Already running server! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_SUCCESS);
+    }
 
     // Set Data
     for (int i = 0; i < 255; i++) {
 		cmd_addr_list[i].pid = 0;
 		cmd_addr_list[i].addr = i+0x2001;
 	}
-    // semaphore 정리
-    sem_unlink(sem_rtu_status.c_str());
-    shm_unlink(shm_rtu_status.c_str());
-
     // /dev/mqueue/ 폴더 정리
     clearMessageQueue();
 
@@ -406,143 +157,8 @@ int main(int argc, char *argv[]) {
     createDataFile(RTU_DATA);
     createDataFile(CLIENT_DATA);
 
-    if(test) {
-        cout << sizeof(rtu_mapper_list) << "/" << sizeof(core::common::Mapper)<< endl;
-
-        cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123447, 1003);
-        write_mapper(RTU_DATA, rtu_mapper_list);
-        print_mapper(rtu_mapper_list);
-
-        cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1002);
-        write_mapper(RTU_DATA, rtu_mapper_list);
-        print_mapper(rtu_mapper_list);
-
-        cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123448, 1001);
-        write_mapper(RTU_DATA, rtu_mapper_list);
-        print_mapper(rtu_mapper_list);
-
-        cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(123445, 1004);
-        write_mapper(RTU_DATA, rtu_mapper_list);
-        print_mapper(rtu_mapper_list);
-
-        cout << getTotalLine(RTU_DATA) << endl;
-        rtu_mapper_list[getTotalLine(RTU_DATA)] = add_mapper(1, 1000);
-        write_mapper(RTU_DATA, rtu_mapper_list);
-        print_mapper(rtu_mapper_list);
-        cout << "/////////////////////////////////////////" << endl;
-        read_mapper(RTU_DATA, rtu_mapper_list);
-        cout << "/////////////////////////////////////////" << endl;
-        
-        std::vector<pid_t> pids;
-        search_mapper(rtu_mapper_list, pids, getTotalLine(RTU_DATA), 1001);
-        for (auto it = pids.begin(); it!= pids.end(); it++) {
-            cout << *it << endl;
-        }
-        //////////////////////////////////////////////////////////////
-        const char* site = "1000001";
-        //////////////////////////////////////////////////////////////
-        // message structure 변환 확인
-        DATA sendbuf[MAX_RAW_BUFF] = {0x00, };
-
-        InitReq req;
-        cout << sizeof(req) << endl;
-        req.fromAddr.setAddr(DEFAULT_ADDRESS);
-        req.toAddr.setAddr(SERVER_ADDRESS);
-        req.siteCode.setSiteCode(site);
-        req.crc8.setCRC8(common::calcCRC((DATA*)&req, sizeof(req)));
-        memcpy(sendbuf, (char*)&req, sizeof(req));
-        common::print_hex(sendbuf, sizeof(req));
-
-        InitRes res;
-        cout << sizeof(res) << endl;
-        res.fromAddr.setAddr(1, RTU_ADDRESS);
-        res.toAddr.setAddr(SERVER_ADDRESS);
-        res.siteCode.setSiteCode(site);
-        res.rtuAddr.setAddr(1, RTU_ADDRESS);
-        res.crc8.setCRC8(common::calcCRC((DATA*)&res, sizeof(res)));
-        memcpy(sendbuf, (char*)&res, sizeof(res));
-        common::print_hex(sendbuf, sizeof(res));
-
-        ClientInitReq cmdreq;
-        cout << sizeof(cmdreq) << endl;
-        cmdreq.fromAddr.setAddr(SERVER_ADDRESS);
-        cmdreq.toAddr.setAddr(DEFAULT_ADDRESS);
-        cmdreq.crc8.setCRC8(common::calcCRC((DATA*)&cmdreq, sizeof(cmdreq)));
-        memcpy(sendbuf, (char*)&cmdreq, sizeof(cmdreq));
-        common::print_hex(sendbuf, sizeof(cmdreq));
-
-        ClientInitRes cmdres;
-        cout << sizeof(cmdres) << endl;
-        cmdres.fromAddr.setAddr(SERVER_ADDRESS);
-        cmdres.toAddr.setAddr(1, CLIENT_ADDRESS);
-        cmdres.clientAddr.setAddr(1, CLIENT_ADDRESS);
-        cmdres.crc8.setCRC8(common::calcCRC((DATA*)&cmdres, sizeof(cmdres)));
-        memcpy(sendbuf, (char*)&cmdres, sizeof(cmdres));
-        common::print_hex(sendbuf, sizeof(cmdres));
-        //////////////////////////////////////////////////////////////
-        char YYYYMMDD[9];
-        char HHMMSS[7];
-        time_t timer = time(NULL);
-        // LocalTime
-        struct tm* t = localtime(&timer);
-        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
-        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
-        cout << YYYYMMDD << endl;
-        cout << HHMMSS << endl;
-        // UTC
-        gmtime_r(&timer, t);
-        strftime(YYYYMMDD, sizeof(YYYYMMDD), "%Y%m%d", t);
-        strftime(HHMMSS, sizeof(HHMMSS), "%H%M%S", t);
-        cout << YYYYMMDD << endl;
-        cout << HHMMSS << endl;
-        //////////////////////////////////////////////////////////////
-        string strAddr = find_rtu_addr(res.siteCode);
-        cout << strAddr << endl;
-        if (strAddr == NOT_FOUND) {
-            strAddr = "0";
-        }
-        
-        //////////////////////////////////////////////////////////////
-        DATA ch[2];
-        // u_short num으로 형변환 
-        unsigned short num = stoi(strAddr);
-        // 0x0001 으로 변환됨
-        printf("hex : 0x%04X, %u \n", num, num);
-        // u_short 을 char[] 변환, endian 변환
-        ch[0]=(char)(num >> 8) | RTU_ADDRESS; // | 0x10 주의
-        ch[1]=(char)(num & 0x00ff);
-        printf("0x%02X, 0x%02X \n", ch[0], ch[1]);
-        res.rtuAddr.setAddr(ch, sizeof(ch));
-        printf("0x%04X, %u \n", res.rtuAddr.getAddr(), res.rtuAddr.getAddr());
-        res.crc8.setCRC8(common::calcCRC((DATA*)&res, sizeof(res)));
-        memcpy(sendbuf, (char*)&res, sizeof(res));
-        common::print_hex(sendbuf, sizeof(res));
-        //////////////////////////////////////////////////////////////
-        // message queue 송수신 확인
-        Mq mq;
-        mq.open(RTU_MQ_NAME, getpid());
-
-        cout << mq.send(sendbuf, sizeof(res)) << endl;
-
-        DATA buf[MQ_MSGSIZE] = {0x00,};
-        cout << mq.recv(buf, sizeof(buf)) << endl;
-        //////////////////////////////////////////////////////////////
-
-        pause();
-    }
-
     // Delete Data
-    syslog(LOG_DEBUG, " : Complete!");
-
-    // Multiple Running 방지
-    if (common::isRunning() == true) {
-        syslog(LOG_ERR, "Already running server!");
-        exit(EXIT_SUCCESS);
-    }
+    syslog(LOG_INFO, " : Setup Complete!");
 
     pid_t pid;
     try {
@@ -550,7 +166,7 @@ int main(int argc, char *argv[]) {
         bool cmd_running = false;
         server::ServerSocket rtu_server(rtu_port);
         server::ServerSocket cmd_server(cmd_port);
-        syslog(LOG_DEBUG, "[Parent process] : listening.......");
+        syslog(LOG_INFO, "[Parent process] : listening.......");
 
         while(true) {
             common::sleep(100);
@@ -611,15 +227,6 @@ int main(int argc, char *argv[]) {
             exit(EXIT_SUCCESS);
     }
     
-    /**
-     * [v] Setting named semaphore ( <== MUTEX )
-     * [v] Loading ini file
-     * [v] Getting ip, port....
-     * [v] Init Database
-     * [v] Clear memory
-     * [v] Create parents server listener socket
-    **/
-
     // 종료전 Multiple Running 방지 해제
     common::close_sem();
     return 0;
@@ -637,7 +244,6 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
     }
     
     if (len > 0) {
-        cout << "[" << getpid() << "] : " << endl;
         core::common::print_hex(data, len);
         
         // 메시지 타입 구분 (RTUs / Cmd Clients)
@@ -667,7 +273,7 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
                 cmd.run();
 
             } else {
-                syslog(LOG_ERR, "Unknown message type");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : Unknown message type! : %s",__FILE__, __LINE__, strerror(errno));
                 common::sleep(500);
 
                 return;
@@ -675,6 +281,7 @@ void start_child(server::ServerSocket newSock, int pid, u_short cmdAddr) {
         }
     }
 }
+///////////////////////////////////////////////////////////////////////////////////
 
 void setChldSignal() {
     struct sigaction act;
@@ -723,7 +330,6 @@ void sigchld_handler(int signo) {
         rtu_lock.unlock();
 
         if (addr > 0) {
-            cout << addr << endl;
             set_rtu_status(addr, STATUS_DISCONNECTED);
         }
 
@@ -777,22 +383,201 @@ void setSegFaultSignal() {
 }
 
 void sigsegfault_handler(int signal, siginfo_t *si, void *arg) {
-    printf("Caught segfault at address %p\n", si->si_addr);
+    syslog(LOG_DEBUG, "Caught segfault at address %p", si->si_addr);
     
     common::close_sem();
     closelog();
     exit(EXIT_SUCCESS);
 }
 
-namespace core {
-    namespace server {
-        ControlServerApplication::ControlServerApplication() {}
-        ControlServerApplication::~ControlServerApplication() {}
-        
-        void ControlServerApplication::sigint_handler(int signo) {}
-        void ControlServerApplication::sigchld_handler(int signo) {}
-        void ControlServerApplication::start_child(int sfd, int idx) {}
-        void ControlServerApplication::setChldSignal() {}
-        void ControlServerApplication::setIntSignal() {}
+///////////////////////////////////////////////////////////////////////////////////
+void clearMessageQueue() {
+    std::system("rm -rf /dev/mqueue/rtu.*");
+    std::system("rm -rf /dev/mqueue/client.*");
+    std::system("rm -rf ./data/*.data");
+}
+
+void createDataFile(std::string filename) {
+    FILE * f = fopen(filename.c_str(), "w");
+    fclose(f);
+}
+
+core::common::Mapper add_mapper(int pid, u_short addr) {
+    core::common::Mapper mapper;
+    mapper.pid = pid;
+    mapper.addr = addr;
+    return mapper;
+}
+
+void print_mapper(core::common::Mapper* mapper) {
+    for (int i = 0; i < MAX_POOL; i++) {
+        if (mapper[i].pid != 0) {
+            syslog(LOG_DEBUG, "Mapper : %d 0x%02X", mapper[i].pid, mapper[i].addr);
+        }
     }
+}
+
+void search_mapper(core::common::Mapper* mapper, pid_t &pid, int idx, u_short addr) {
+    core::common::Mapper* map;
+    for (map = mapper; map < mapper + idx; map++) {
+        if (map->addr == addr) {
+            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
+            pid = map->pid;
+        }
+    }
+}
+
+void search_mapper(core::common::Mapper* mapper, std::vector<pid_t> &pids, int idx, u_short addr) {
+    core::common::Mapper* map;
+    for (map = mapper; map < mapper + idx; map++) {
+        if (map->addr == addr) {
+            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
+            pids.push_back(map->pid);
+        }
+    }
+}
+
+void search_mapper(core::common::Mapper* mapper, u_short &addr, pid_t pid, int idx) {
+    core::common::Mapper* map;
+    for (map = mapper; map < mapper + idx; map++) {
+        if (map->pid == pid) {
+            syslog(LOG_DEBUG, "Found Mapper : %d 0x%02X", map->pid, map->addr);
+
+            addr = map->addr;
+        }
+    }
+}
+
+bool delete_mapper(core::common::Mapper* mapper, int idx, int pid) {
+    bool ret = false;
+    for (int i = 0; i < idx; i++) {
+        if (mapper[i].pid == pid) {
+            mapper[i].pid = 0;
+            ret = true;
+        }
+    }
+    return ret;
+}
+
+void write_mapper(std::string filename, core::common::Mapper* mapper) {
+    FILE * f = fopen(filename.c_str(), "w");
+    for (int i = 0; i < MAX_POOL; i++) {
+        if (mapper[i].pid != 0) {
+            fprintf(f, "%d %hd\n", mapper[i].pid, mapper[i].addr);
+        }
+    }
+    fclose(f);
+}
+
+void read_mapper(std::string filename, core::common::Mapper* mapper) {
+    FILE * f = fopen(filename.c_str(), "r");
+
+    for (int i = 0; i < MAX_POOL; i++) {
+        fscanf(f, "%d %hd", &mapper[i].pid, &mapper[i].addr);
+    }
+    fclose(f);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+std::pair<pid_t, u_short> add_pair(pid_t pid, u_short addr) {
+    return std::make_pair(pid, addr);
+}
+
+void read_pair(std::string filename, std::set<std::pair<pid_t, u_short>> &s) {
+    FILE * f = fopen(filename.c_str(), "r");
+    char buf[1024];
+    while (fgets(buf, 1024, f)!= NULL) {
+        pid_t pid;
+        u_short addr;
+        sscanf(buf, "%d %hd", &pid, &addr);
+        s.insert(add_pair(pid, addr));
+    }
+    fclose(f);
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+int getTotalLine(std::string name) {
+    FILE *fp;
+    int line=0;
+    char c;
+    fp = fopen(name.c_str(), "r");
+    while ((c = fgetc(fp)) != EOF) {
+        if (c == '\n') {
+            line++;
+        }
+    }
+    fclose(fp);
+    return(line);
+}
+
+void init_rtu_status() {
+    std::vector<std::string> siteids;
+    size_t size = core::common::get_siteid(siteids);
+    if (size == 0) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : Not found Site ID! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    } else {
+        syslog(LOG_INFO, "Site ID Count : %ld", size);
+    }
+
+    system::SemLock status_lock(sem_rtu_status);
+    RtuStatus rtustatus[size];
+    status_lock.lock();
+    int shm_fd = shm_open(shm_rtu_status.c_str(), O_CREAT | O_RDWR, 0666);
+    if (shm_fd == -1) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : shm_open error! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    ftruncate(shm_fd, sizeof(rtustatus));
+    RtuStatus* shm_ptr = (RtuStatus *)mmap(NULL, sizeof(rtustatus), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : mmap error! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    for (size_t i = 0; i < size; i++) {
+        rtustatus[i].siteid.setAddr(siteids[i].c_str(), RTU_ADDRESS);
+        rtustatus[i].status.setStatus(STATUS_DISCONNECTED);
+    }
+    memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
+    munmap(shm_ptr, sizeof(rtustatus));
+    status_lock.unlock();
+}
+
+void set_rtu_status(u_short sid, DATA status) {
+    core::system::SemLock status_lock(sem_rtu_status);
+    size_t size = core::common::getcount_site();
+    if (size == 0) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : Not found Site ID! : %s",__FILE__, __LINE__, strerror(errno));
+        return;
+    } else {
+        syslog(LOG_DEBUG, "Found Site ID : %ld", size);
+    }
+    RtuStatus rtustatus[size];
+    status_lock.lock();
+
+    int shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+    if (shm_fd == -1) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : shm_open error! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    void* shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        syslog(LOG_ERR, "[Error : %s:%d] Failed : mmap error! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    memcpy((void*)rtustatus, shm_ptr, sizeof(rtustatus));
+    for (size_t i = 0; i < size; i++) {
+        RtuStatus st = rtustatus[i];
+        if (sid == st.siteid.getAddr()) {
+            rtustatus[i].status.setStatus(status);
+            if (test) {
+                printf("%02X-0x%0X>0x%0X\n", st.siteid.getAddr() ,st.status.getStatus(), status);
+            }
+        }
+    }
+    memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
+    munmap(shm_ptr, sizeof(rtustatus));
+    status_lock.unlock();
 }

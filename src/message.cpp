@@ -14,7 +14,7 @@ namespace core {
         }
         void Address::setAddr(u_short addr, char section) {   // 수신 메시지에서 읽어온 주소 변환
             DATA ch[2];
-            ch[0]=(char)(addr >> 8) | section; // | 0x10 주의
+            ch[0]=(char)(addr >> 8) | section;
             ch[1]=(char)(addr & 0x00ff);
             setAddr(ch, 2);
         }
@@ -97,11 +97,6 @@ namespace core {
             syslog(LOG_DEBUG, "crc: 0x%02X", this->crc8.getCRC8());
             syslog(LOG_DEBUG, "etx: 0x%02X", this->etx);
         }
-        //////////////////////////////////////////////
-        // bool Message::setFromAddr() {}
-        // bool Message::setToAddr() {}
-        // bool Message::setLength() {}
-        // bool Message::calcCrc() {}
         //////////////////////////////////////////////
         // Class InitReq
         InitReq::InitReq() : stx(STX), cmd(INIT_REQ), length(7), etx(ETX) {}
@@ -314,10 +309,6 @@ namespace core {
         void Status::setStatus(DATA status) {
             this->status = status;
         }
-        //////////////////////////////////////////////
-        // Class RtuStatus
-        // RtuStatus::RtuStatus() {}
-        // RtuStatus::~RtuStatus() {}
         //////////////////////////////////////////////
         // Class RtuStatusResHead
         RtuStatusResHead::RtuStatusResHead() : stx(STX), cmd(RTU_STATUS_RES), length(0), count(0) {}

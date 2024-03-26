@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fcntl.h>   // O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+#include "common.h"
 #include "sem.h"
 
 using namespace std;
@@ -17,6 +18,8 @@ namespace core {
                     bRet = true;
                     // sem_close(gRunning);
                     // sem_unlink(SERVER_SEMAPHORE);
+                } else {
+                    syslog(LOG_ERR, "[Error : %s:%d] Failed : sem_open() : %s",__FILE__, __LINE__, strerror(errno));
                 }
             }
             return bRet;

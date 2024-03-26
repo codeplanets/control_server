@@ -2,14 +2,12 @@
 #include <signal.h>
 
 #include "rtu.h"
-#include "packetizer.h"
 #include "socketexception.h"
 
 void rtu_timeout_handler(int sig) {
     if (sig == SIGALRM) {
-        syslog(LOG_WARNING, "Timeout %d seconds", WAITING_SEC);
+        syslog(LOG_WARNING, "Timeout %d seconds : ", WAITING_SEC);
     }
-
     exit(EXIT_FAILURE);
 }
 
@@ -112,22 +110,22 @@ namespace core {
         system::SemLock status_lock(sem_rtu_status);
         size_t size = getcount_site();
         if (size == 0) {
-            syslog(LOG_ERR, "No Site Code Found!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : Not found Site Code! : %s",__FILE__, __LINE__, strerror(errno));
             return;
         } else {
-            syslog(LOG_INFO, "Site Code Found : %ld", size);
+            syslog(LOG_DEBUG, "Site Code Found : %ld", size);
         }
         RtuStatus rtustatus[size];
         status_lock.lock();
         shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
         if (shm_fd == -1) {
-            syslog(LOG_ERR, "shm_open error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : shm_open() error! : %s",__FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         }
         // ftruncate(shm_fd, sizeof(rtustatus));
         shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
         if (shm_ptr == MAP_FAILED) {
-            syslog(LOG_ERR, "mmap error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : mmap() error! : %s",__FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         }
 
@@ -136,7 +134,9 @@ namespace core {
             RtuStatus st = rtustatus[i];
             if (sid == st.siteid.getAddr()) {
                 rtustatus[i].status.setStatus(status);
-                printf("%02X-0x%0X>0x%0X\n", st.siteid.getAddr() ,st.status.getStatus(), status);
+                if (test) {
+                    printf("%02X-0x%0X>0x%0X\n", st.siteid.getAddr() ,st.status.getStatus(), status);
+                }
             }
         }
         memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
@@ -215,7 +215,6 @@ namespace core {
                                 search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
 
                                 for (auto it = pids.begin(); it!= pids.end(); it++) {
-                                    cout << *it << endl;
                                     pid = *it;
                                     if (pid != 0) {
                                         if (cmd_mq.open(CLIENT_MQ_NAME, pid)) {
@@ -251,12 +250,11 @@ namespace core {
                         common::sleep(100);
                         continue;
                     } else {
-                        syslog(LOG_ERR, "RTUclient::run : %s", strerror(errno));
+                        syslog(LOG_ERR, "[Error : %s:%d] Failed : peek() error! : %s",__FILE__, __LINE__, strerror(errno));
                         break;
                     }
                 } else if (rcvByte == 0) {
                     common::sleep(100);
-                    cout << ".";
                     continue;
                 } else {
                     common::print_hex(sock_buf, rcvByte);
@@ -314,6 +312,11 @@ namespace core {
                                 write_mapper(RTU_DATA, mapper_list);
                             }
                             print_mapper(mapper_list);
+                            // std::set<std::pair<pid_t, u_short>> pidaddr_rtu;
+                            // read_pair(RTU_DATA, pidaddr_rtu);
+                            // pidaddr_rtu.insert(add_pair(rtu_pid, addr));
+                            // write_pair(RTU_DATA, pidaddr_rtu);
+                            // print_pair(pidaddr_rtu);
                             rtu_lock.unlock();
                         }
 
@@ -321,7 +324,7 @@ namespace core {
                         setStatus(sid, STATUS_CONNECTED);
 
                     } else if (sock_buf[1] == HEART_BEAT) {  // RTU
-                        syslog(LOG_INFO, "RTU >> SVR : Heartbeat.");
+                        syslog(LOG_DEBUG, "RTU >> SVR : Heartbeat.");
                         alarm(WAITING_SEC);
                         
                         HeartBeat msg;
@@ -332,7 +335,7 @@ namespace core {
                         }
                         msg.print();
 
-                        syslog(LOG_INFO, "SVR >> RTU : Heartbeat Ack.");
+                        syslog(LOG_DEBUG, "SVR >> RTU : Heartbeat Ack.");
                         sendByte = reqMessage(sendbuf, HEART_BEAT_ACK);
                         newSock.send(sendbuf, sendByte);
 
@@ -359,7 +362,6 @@ namespace core {
                         syslog(LOG_DEBUG, "Client Address : 0x%02X Searching...", msg.toAddr.getAddr());
                         search_mapper(cmd_mapper_list, pids, line, msg.toAddr.getAddr());
                         for (auto it = pids.begin(); it!= pids.end(); it++) {
-                            cout << *it << endl;
                             pid = *it;
                             if (pid != 0) {
                                 if (cmd_mq.open(CLIENT_MQ_NAME, pid)) {
@@ -383,4 +385,86 @@ namespace core {
             common::sleep(100);
         }
     }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    std::pair<pid_t, u_short> RTUclient::add_pair(pid_t pid, u_short addr) {
+        return std::make_pair(pid, addr);
+    }
+
+    void RTUclient::print_pair(std::set<std::pair<pid_t, u_short>> s) {
+        for (std::pair<pid_t, u_short> p : s) {
+            syslog(LOG_DEBUG, "print_pair() : %d 0x%02X", p.first, p.second);
+        }
+    }
+
+    bool RTUclient::search_pair(std::set<std::pair<pid_t, u_short>> s, u_short addr, pid_t &pid) {
+        bool ret = false;
+        for (std::pair<pid_t, u_short> p : s) {
+            if (p.second == addr) {
+                pid = p.first;
+                syslog(LOG_DEBUG, "search_pair() : %d 0x%02X", p.first, p.second);
+                ret = true;
+                break;
+            }
+        }
+        return ret;
+    }
+
+    bool RTUclient::search_pair(std::set<std::pair<pid_t, u_short>> s, pid_t pid, u_short &addr) {
+        bool ret = false;
+        for (std::pair<pid_t, u_short> p : s) {
+            if (p.first == pid) {
+                addr = p.second;
+                syslog(LOG_DEBUG, "search_pair() : %d 0x%02X", p.first, p.second);
+                ret = true;
+                break;
+            }
+        }
+        return ret;
+    }
+
+    bool RTUclient::search_pair(std::set<std::pair<pid_t, u_short>> s, u_short addr, std::vector<pid_t> &pids) {
+        bool ret = false;
+        for (std::pair<pid_t, u_short> p : s) {
+            if (p.second == addr) {
+                pids.push_back(p.first);
+                syslog(LOG_DEBUG, "search_pair() : %d 0x%02X", p.first, p.second);
+                ret = true;
+            }
+        }
+        return ret;
+    }
+
+    bool RTUclient::delete_pair(std::set<std::pair<pid_t, u_short>> &s, int pid) {
+        bool ret = false;
+        for (std::pair<pid_t, u_short> p : s) {
+            if (p.first == pid) {
+                s.erase(p);
+                syslog(LOG_DEBUG, "delete_pair() : %d", pid);
+                ret = true;
+            }
+        }
+        return ret;
+    }
+
+    void RTUclient::write_pair(std::string filename, std::set<std::pair<pid_t, u_short>> s) {
+        FILE * f = fopen(filename.c_str(), "w");
+        for (std::pair<pid_t, u_short> p : s) {
+            fprintf(f, "%d %hd\n", p.first, p.second);
+        }
+        syslog(LOG_DEBUG, "write_pair()");
+        fclose(f);
+    }
+
+    void RTUclient::read_pair(std::string filename, std::set<std::pair<pid_t, u_short>> &s) {
+        FILE * f = fopen(filename.c_str(), "r");
+        char buf[1024];
+        while (fgets(buf, 1024, f)!= NULL) {
+            pid_t pid;
+            u_short addr;
+            sscanf(buf, "%d %hd", &pid, &addr);
+            s.insert(add_pair(pid, addr));
+        }
+        fclose(f);
+    }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
 }

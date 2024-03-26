@@ -31,7 +31,7 @@ namespace core {
         ~Client();
 
         /**
-         * @return true if SiteCode is available, false otherwise
+         * @return true if SiteCode is available, false otherwise 
         */
         bool isSiteCodeAvailable();
 
@@ -45,12 +45,25 @@ namespace core {
          * Converting Message Type to DATA type
         */
         virtual int reqMessage(DATA* buf, DATA cmd) = 0;
+
+        /**
+         * Runner
+        */
         virtual void run() = 0;
 
-        // size_t get_sitecode(std::vector<std::string> &sitecodes);
+        /**
+         * @return Getting sitecode count from database
+        */
         size_t getcount_site();
+
+        /**
+         * @return Getting sitdID from database to sitecode
+        */
         std::string find_rtu_addr(SiteCode scode);
 
+        /**
+         * Control mapper class
+        */
         core::common::Mapper add_mapper(int pid, u_short addr);
         void print_mapper(core::common::Mapper* mapper);
         void search_mapper(core::common::Mapper* mapper, pid_t &pid, int idx, u_short addr);

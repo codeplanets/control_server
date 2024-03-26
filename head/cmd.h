@@ -11,12 +11,9 @@ namespace core {
         Command dcCommand;
         Command acCommand;
         Result cmdResult;
-
         CmdLog cmdLog;
-
         time_t timer;
         bool waiting;
-
     public:
         CMDclient(ServerSocket& sock);
         ~CMDclient();
@@ -25,9 +22,6 @@ namespace core {
         void setSiteCode(char* scode);
         void setTimeout();
         
-        /**
-         * Converting Message Type to DATA type
-        */
         virtual int reqMessage(DATA* buf, DATA cmd);
         virtual void run();
     
@@ -40,10 +34,5 @@ namespace core {
         void setWaitingTime();
         bool checkWaitingTime(int period);
         void stopWaitingTime();
-        
-    private:
-        // core::common::Mapper mapper_list[MAX_POOL];
-        
     };
 }
-

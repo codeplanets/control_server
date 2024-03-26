@@ -26,13 +26,13 @@ namespace core {
         bool CommSock::create(void) {
             m_sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
             if(!is_valid()) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed create socket()", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : create socket()! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
             // TIME_WAIT - argh
             int reuse_on = 1;
             if(setsockopt(m_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse_on, sizeof(reuse_on)) == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(REUSEADDR)", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : setsockopt(REUSEADDR)! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
             // Keep alive
@@ -54,17 +54,17 @@ namespace core {
             */
             int keepalive_on = 1;
             if(setsockopt(m_sock, SOL_SOCKET, SO_KEEPALIVE, (const char*)&keepalive_on, sizeof(keepalive_on)) == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(KEEPALIVE)", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : setsockopt(KEEPALIVE)! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
 
             struct timeval tv_timeo = { 3, 500000};
             if (setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, (&tv_timeo), sizeof(struct timeval)) == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(RCVTIMEO)", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : setsockopt(RCVTIMEO)! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
             if (setsockopt(m_sock, SOL_SOCKET, SO_SNDTIMEO, (&tv_timeo), sizeof(struct timeval)) == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed setsockopt(SNDTIMEO)", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : setsockopt(SNDTIMEO)! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
 
@@ -83,7 +83,7 @@ namespace core {
 
             int bind_return = ::bind(m_sock, (struct sockaddr *)&m_addr, len_addr);
             if(bind_return == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed bind()", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : bind()! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
 
@@ -97,7 +97,7 @@ namespace core {
 
             int listen_return = ::listen(m_sock, m_listen_backlog);
             if(listen_return == -1) {
-                syslog(LOG_ERR, "[%s:%d]  : Failed listen()", __FILE__, __LINE__);
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : listen()! : %s",__FILE__, __LINE__, strerror(errno));
                 return false;
             }
 

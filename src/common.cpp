@@ -18,11 +18,14 @@ namespace core {
         }
         
         void print_hex(DATA *buf, int size) {
-            for (int index = 0; index < size; index++) {
-                if (index % 16 == 0) printf("\n");
-                printf("0x%02X ", buf[index]);
+            if (test) {
+                for (int index = 0; index < size; index++) {
+                    if (index % 16 == 0) printf("\n");
+                    printf("0x%02X ", buf[index]);
+                }
+                printf("\n");
             }
-            printf("\n");
+            
         }
 
         u_short convert_be_to_le(DATA* be, int size) {

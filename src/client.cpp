@@ -1,7 +1,6 @@
 #include <unistd.h>
 
 #include "client.h"
-#include "packetizer.h"
 #include "socketexception.h"
 
 namespace core {
@@ -42,7 +41,7 @@ namespace core {
         Database db;
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             return 0;
         }
         string query = "SELECT COUNT(*) FROM RSite;";
@@ -55,12 +54,10 @@ namespace core {
             pRes = db.db_get_result(query.c_str());
             sqlrow = db.db_fetch_row(pRes);
             if (sqlrow) {
-                cout << sqlrow[0] << endl;
                 return atoi(sqlrow[0]);
             }
         } catch (exception& e) {
-            syslog(LOG_ERR, "DB Fetch Error!");
-            cout << e.what() << endl;
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Fetch Error! : %s",__FILE__, __LINE__, strerror(errno));
         }
         
         return 0;
@@ -71,7 +68,7 @@ namespace core {
         Database db;
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         }
         char* siteCode = scode.getSiteCode();
@@ -87,7 +84,7 @@ namespace core {
         MYSQL_RES* pRes;
         ecode = db.db_query(query.c_str(), &pRes);
         if (ecode != EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Query Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Query Error! : %s",__FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         }
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
@@ -99,8 +96,7 @@ namespace core {
                 addr = sqlrow[2];
             }
         } catch (exception& e) {
-            syslog(LOG_ERR, "DB Fetch Error!");
-            cout << e.what() << endl;
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Fetch Error! : %s",__FILE__, __LINE__, strerror(errno));
         }
         syslog(LOG_DEBUG, "+----------+----------+--------+-------+");
         return addr;

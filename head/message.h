@@ -67,6 +67,22 @@ namespace core {
             void setResult(char);
         };
 
+        class Status {
+        private:
+            DATA status;
+        
+        public:
+            char getStatus();
+            void setStatus(DATA status);
+        };
+        class RtuStatus {
+        public:
+            RtuStatus() {}
+            ~RtuStatus() {}
+            Address siteid;
+            Status status;
+        };
+
         class MsgHeader {
         public:
             MsgHeader();
@@ -77,7 +93,7 @@ namespace core {
             DATA cmd;
             Address fromAddr;
             Address toAddr;
-            unsigned short length;
+            unsigned short length; // Payload length
         };
 
         class MsgTail {
@@ -86,10 +102,10 @@ namespace core {
             ~MsgTail();
             void print();
             
-            CRC crc8;
+            CRC crc8; // stx + cmd + fromAddr + toAddr + length + payload
             DATA etx;
         };
-
+        ///////////////////////////////////////////////////////////////////
         class InitReq {
         public:
             InitReq();
@@ -105,19 +121,6 @@ namespace core {
             CRC crc8;
             DATA etx;
         };
-
-        struct RInitReq {
-            DATA stx;
-            DATA cmd;
-            Address fromAddr;
-            Address toAddr;
-            unsigned short length;
-            SiteCode siteCode;
-            Address rtuAddr;
-            CRC crc8;
-            DATA etx;
-        };
-
         class InitRes {
         public:
             InitRes();
@@ -128,10 +131,10 @@ namespace core {
             DATA cmd;
             Address fromAddr;
             Address toAddr;
-            unsigned short length; // Payload + crc + etx
+            unsigned short length;
             SiteCode siteCode;
             Address rtuAddr;
-            CRC crc8; // stx + cmd + fromAddr + toAddr + length + payload
+            CRC crc8;
             DATA etx;
         };
         class HeartBeat {
@@ -308,23 +311,6 @@ namespace core {
             CRC crc8;
             DATA etx;
         };
-
-        class Status {
-        private:
-            DATA status;
-        
-        public:
-            char getStatus();
-            void setStatus(DATA status);
-        };
-        class RtuStatus {
-        public:
-            RtuStatus() {}
-            ~RtuStatus() {}
-            Address siteid;
-            Status status;
-        };
-
         class RtuStatusResHead {
         public:
             RtuStatusResHead();
@@ -338,7 +324,6 @@ namespace core {
             unsigned short length;
             unsigned short count;
         };
-        
         class RtuStatusResTail {
         public:
             RtuStatusResTail();
@@ -348,5 +333,6 @@ namespace core {
             CRC crc8;
             DATA etx;
         };
+        ///////////////////////////////////////////////////////////////////
     }
 }
