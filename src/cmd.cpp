@@ -190,9 +190,8 @@ namespace core {
         if (!waiting) {
             return true;
         }
-
         time_t timer_now = time(NULL);
-        if (timer - timer_now > period) {
+        if (abs(timer - timer_now) > period) {
             waiting = false;
             return false;
         }
@@ -252,6 +251,7 @@ namespace core {
                             if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
                                 syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
                                 common::print_hex(mq_buf, rcvByte);
+                                stopWaitingTime();
 
                                 CommandRtuAck msg;
                                 assert(rcvByte == sizeof(msg));
@@ -396,6 +396,7 @@ namespace core {
                             if (pid == 0) {
                                 syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
                                 setup_ack_value(cmdLog, "N", NOT_CONNECT);
+                                stopWaitingTime();
 
                                 DATA result = COMMAND_RESULT_NOT_CONNECT;
                                 this->cmdResult.setResult(result);
@@ -408,6 +409,7 @@ namespace core {
                         } else {
                             syslog(LOG_WARNING, "Unknown Site Code from client. : %s", this->scode.getSiteCode());
                             setup_ack_value(cmdLog, "N", SITE_NOT_FOUND);
+                            stopWaitingTime();
 
                             DATA result = COMMAND_RESULT_NOT_FOUND;
                             this->cmdResult.setResult(result);
@@ -491,10 +493,10 @@ namespace core {
                         }
                         msg.print();
 
-                        this->serverAddr = msg.fromAddr;    // * 확인 *
-                        this->cmdAddr = msg.toAddr;         // * 확인 *
+                        this->serverAddr = msg.fromAddr;
+                        this->cmdAddr = msg.toAddr;
 
-                        // TODO : 모든 Address의 Client MQ에 send 해야함.
+                        // 모든 Address의 Client MQ에 send 해야함.
                         sendByte = reqMessage(sendbuf, RTU_STATUS_RES);
                         Mq cmd_mq;
                         std::vector<pid_t> pids;

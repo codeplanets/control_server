@@ -5,55 +5,10 @@
 #include "packetizer.h"
 #include "socketexception.h"
 
-// u_short g_siteid = 0;
-
-// void setStatus(u_short sid, DATA status) {
-//     /////////////////////////////////////////////////
-//     // Child
-//     core::system::SemLock status_lock(sem_rtu_status);
-//     size_t size = core::common::getcount_site();
-//     if (size == 0) {
-//         syslog(LOG_ERR, "NotFound Site ID!");
-//         return;
-//     } else {
-//         syslog(LOG_INFO, "Found Site ID : %ld", size);
-//     }
-//     RtuStatus rtustatus[size];
-//     status_lock.lock();
-
-//     int shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
-//     if (shm_fd == -1) {
-//         syslog(LOG_ERR, "shm_open error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     // ftruncate(shm_fd, sizeof(rtustatus));
-//     void* shm_ptr = mmap(NULL, sizeof(rtustatus), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
-//     if (shm_ptr == MAP_FAILED) {
-//         syslog(LOG_ERR, "mmap error!");
-//         exit(EXIT_FAILURE);
-//     }
-//     memcpy((void*)rtustatus, shm_ptr, sizeof(rtustatus));
-//     for (size_t i = 0; i < size; i++) {
-//         RtuStatus st = rtustatus[i];
-//         if (sid == st.siteid.getAddr()) {
-//             rtustatus[i].status.setStatus(status);
-//             printf("%02X-0x%0X>0x%0X\n", st.siteid.getAddr() ,st.status.getStatus(), status);
-//         }
-//     }
-//     memcpy((void*)shm_ptr, rtustatus, sizeof(rtustatus));
-//     munmap(shm_ptr, sizeof(rtustatus));  // close
-//     status_lock.unlock();
-// }
-
 void rtu_timeout_handler(int sig) {
     if (sig == SIGALRM) {
         syslog(LOG_WARNING, "Timeout %d seconds", WAITING_SEC);
     }
-
-    // if (g_siteid) {
-    //     setStatus(g_siteid, STATUS_DISCONNECTED);
-    //     g_siteid = 0;
-    // }
 
     exit(EXIT_FAILURE);
 }
@@ -65,9 +20,6 @@ namespace core {
     }
 
     RTUclient::~RTUclient() {
-        // g_siteid = this->rtuAddr.getAddr();
-        // setStatus(g_siteid, STATUS_DISCONNECTED);
-        // g_siteid = 0;
         mq.close();
     }
 
@@ -204,8 +156,7 @@ namespace core {
         createMessageQueue(RTU_MQ_NAME);
 
         while (true) {
-
-            // TODO : Command Client Message Queue
+            // Command Client Message Queue
             try {
                 errno = 0;
                 if (mq.open(RTU_MQ_NAME, getpid())) {
@@ -251,7 +202,7 @@ namespace core {
                                 this->actResult.setResult(result);
                                 sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
 
-                                // TODO : Client MQ 에 데이터를 전송
+                                // Client MQ 에 데이터를 전송
                                 Mq cmd_mq;
                                 pid_t pid = 0;
                                 std::vector<pid_t> pids;
@@ -286,7 +237,6 @@ namespace core {
                 } else {
                     syslog(LOG_WARNING, "Failed to open RTU MQ. : %d", getpid());
                 }
-            // sleep(1);
             } catch (exception& e) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : %s",__FILE__, __LINE__, e.what());
             }
@@ -369,7 +319,6 @@ namespace core {
 
                         u_short sid = this->rtuAddr.getAddr();
                         setStatus(sid, STATUS_CONNECTED);
-                        // g_siteid = sid;
 
                     } else if (sock_buf[1] == HEART_BEAT) {  // RTU
                         syslog(LOG_INFO, "RTU >> SVR : Heartbeat.");
@@ -397,27 +346,12 @@ namespace core {
                         }
                         msg.print();
 
-                        // TODO : Client MQ 에 데이터를 전송
+                        // Client MQ 에 데이터를 전송
                         Mq cmd_mq;
                         pid_t pid = 0;
                         std::vector<pid_t> pids;
                         cmd_lock.lock();
-                        // data에서 pid를 read.
-                        // read_mapper(CLIENT_DATA, cmd_mapper_list);
-                        // int line = getTotalLine(CLIENT_DATA);
-                        // core::common::MAPPER* map;
-                        // for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
-                        //     if (map->pid != 0) {
-                        //         if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
-                        //             syslog(LOG_INFO, "SVR >> MQ : Command RTU Ack. : %d", map->pid);
-                        //             cmd_mq.send(sock_buf, sizeof(msg));
-                        //             cmd_mq.close();
-                        //         } else {
-                        //             syslog(LOG_WARNING, "Failed to open Client MQ. : %d", pid);                                    
-                        //         }
-                        //     }
-                        // }
-                        // core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        // data에서 status read.
                         read_mapper(CLIENT_DATA, cmd_mapper_list);
                         int line = getTotalLine(CLIENT_DATA);
                         cmd_lock.unlock();
@@ -437,7 +371,6 @@ namespace core {
                                 }
                             }
                         }
-
                     } else {
                         syslog(LOG_WARNING, "Unknown message type from socket.");
                     }
