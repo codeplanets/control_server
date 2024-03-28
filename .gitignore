@@ -32,4 +32,5 @@
 *.out
 *.app
 controlserver
+rtuemul/rtuemul
 memcheck.txt

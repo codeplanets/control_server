@@ -27,17 +27,14 @@ namespace core {
         ECODE Database::db_init(const char* server, unsigned int port, const char* user, const char* password, const char* database) {
             m_pConn = mysql_init(NULL);
             if (!m_pConn) {
-                syslog(LOG_ERR, "error");
                 return EC_FAILURE;
-            } else {
-                syslog(LOG_DEBUG, "Init Database....");
             }
 
             m_pConn = mysql_real_connect(m_pConn, server, user, password, database, port, NULL, 0);
             if (m_pConn) {
                 syslog(LOG_DEBUG, "Success connect to database.");
             } else {
-                syslog(LOG_ERR, "Connect error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : Connect error! : %s",__FILE__, __LINE__, strerror(errno));
                 return EC_FAILURE;
             }
 

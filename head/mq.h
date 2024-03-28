@@ -4,25 +4,23 @@
 
 #include "common.h"
  
-using namespace std;
-
 namespace core {
     namespace system {
         class Mq {
         protected:
-            string m_mqname;
+            std::string m_mqname;
             struct mq_attr m_mq_attrib;
             mqd_t m_mq_fd;
 
         private:
-            string make_mq_name(const string name, int pid);
-            string get_mq_name();
+            std::string make_mq_name(const std::string name, int pid);
+            std::string get_mq_name();
 
         public:
             Mq();
             virtual ~Mq();
 
-            bool open(const string name, int pid);
+            bool open(const std::string name, int pid);
             void close(void);
             
             bool send(DATA*, size_t len);

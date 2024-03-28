@@ -36,6 +36,11 @@ typedef u_char DATA;
 #define RTU_STATUS_REQ (DATA)0x19
 #define RTU_STATUS_RES (DATA)0x1F
 
+#define COMMAND_RESULT_OK (DATA)0x01
+#define COMMAND_RESULT_NOT_FOUND (DATA)0x02
+#define COMMAND_RESULT_NOT_CONNECT (DATA)0x03
+#define COMMAND_RESULT_NOT_ACK (DATA)0x04
+
 #define ACTION_RESULT_OK (DATA)0x01
 #define ACTION_RESULT_FAIL (DATA)0x02
 
@@ -64,8 +69,9 @@ const int MAX_POOL = 255;
 const int LISTEN_BACKLOG = 5;
 const u_int WAITING_SEC = 60;
 const u_int CMD_WAITING_SEC = 600;
-const long MQ_MAXMSG = 10;
-const long MQ_MSGSIZE = 2048;
+const long MQ_MAXMSG = 2;
+const long MQ_MSGSIZE = 800;
+const long MQ_CMD_MSGSIZE = 800;
 
 const std::string NOT_FOUND = "NONE";
 const std::string RTU_DATA = "./data/rtu.data";
@@ -78,15 +84,18 @@ const int NOT_ACK = 4;
 
 namespace core {
     namespace common {
-        typedef struct mq_rtu_mapper {
+        class Mapper {
+        public:
+            Mapper() : pid(0), addr(0) {}
+
             pid_t pid;
             u_short addr;
 
-            bool operator < (const mq_rtu_mapper &var) const {
+            bool operator < (const core::common::Mapper &var) const {
                 if (pid == var.pid) return addr < var.addr;
                 return pid > var.pid;
             }
-        } MAPPER;
+        };
 
         void sleep(unsigned int dwMilliSec);
         void print_hex(DATA *buf, int size);
@@ -96,6 +105,7 @@ namespace core {
 
         size_t getcount_site();
         size_t get_sitecode(std::vector<std::string> &sitecodes);
+        size_t get_siteid(std::vector<std::string> &siteids);
     }
 }
 

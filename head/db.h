@@ -4,7 +4,6 @@
 
 #include "common.h"
 #include "errorcode.h"
-
 #include "configparser.h"
 
 using namespace std;
@@ -36,7 +35,7 @@ namespace core {
     }
 }
 
-/** RSite Table Structure
+/** Sample RSite Table Structure
  * +----------+----------+--------+-------+
  * | SiteCode | SiteName | SiteID | Basin |
  * +----------+----------+--------+-------+

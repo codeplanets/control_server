@@ -2,7 +2,6 @@
 #include <signal.h>
 
 #include "cmd.h"
-#include "packetizer.h"
 #include "socketexception.h"
 
 void cmd_timeout_handler(int sig) {
@@ -14,7 +13,7 @@ void cmd_timeout_handler(int sig) {
 
 namespace core {
     CMDclient::CMDclient(ServerSocket& sock)
-    : Client(sock) {
+    : Client(sock), waiting(false) {
         
     }
 
@@ -112,23 +111,23 @@ namespace core {
             system::SemLock status_lock(sem_rtu_status);
             size_t size = getcount_site();
             if (size == 0) {
-                syslog(LOG_ERR, "No Site Code Found!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : Not found Site Code! : %s",__FILE__, __LINE__, strerror(errno));
             } else {
-                syslog(LOG_INFO, "Site Code Found : %ld", size);
+                syslog(LOG_DEBUG, "Site Code Found : %ld", size);
             }
             RtuStatus rtustatus[size];
             int bodysize = sizeof(rtustatus);
 
             status_lock.lock();
-            shm_fd = shm_open(shm_rtu_status.c_str(), O_RDWR, 0666);
+            shm_fd = shm_open(shm_rtu_status.c_str(), O_RDONLY, 0666);
             if (shm_fd == -1) {
-                syslog(LOG_ERR, "shm_open error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : shm_open() error! : %s",__FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
             }
-            ftruncate(shm_fd, bodysize);
-            shm_ptr = mmap(NULL, bodysize, PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+            // ftruncate(shm_fd, bodysize);
+            shm_ptr = mmap(NULL, bodysize, PROT_READ, MAP_SHARED, shm_fd, 0);
             if (shm_ptr == MAP_FAILED) {
-                syslog(LOG_ERR, "mmap error!");
+                syslog(LOG_ERR, "[Error : %s:%d] Failed : mmap() error! : %s",__FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
             }
             memcpy((void*)rtustatus, shm_ptr, bodysize);
@@ -148,20 +147,22 @@ namespace core {
             msgHead.count = size;
             msgHead.print();
 
-            int msgSize = sizeof(msgHead);
+            int headSize = sizeof(msgHead);
+            int tailSize = sizeof(msgTail);
+            int totSize = headSize + bodysize + tailSize;
+            int idx = headSize;
             // head만큼 copy
-            memcpy(buf, (char*)&msgHead, msgSize);
+            memcpy(buf, (char*)&msgHead, headSize);
             // head 끝부분 부터 bodysize만큼 copy
-            memcpy(buf+msgSize, rtustatus, bodysize);
-            msgSize += bodysize;
+            memcpy(buf+idx, rtustatus, bodysize);
+            idx += bodysize;
+            memcpy(buf+idx, (char*)&msgTail, sizeof(msgTail));
             // head + body crc를 계산
-            msgTail.crc8.setCRC8(common::calcCRC((DATA*)&buf, msgSize));
+            msgTail.crc8.setCRC8(common::calcCRC(buf, totSize));
+            msgTail.print();
+            memcpy(buf+idx, (char*)&msgTail, sizeof(msgTail));
 
-            memcpy(buf+msgSize, (char*)&msgTail, sizeof(msgTail));
-            // tail만큼 더해서 전체 메시지 크기 계산
-            msgSize += sizeof(msgTail);
-            common::print_hex(buf, msgSize);
-            return msgSize;
+            return totSize;
 
         } else {
             syslog(LOG_WARNING, "Unknown message type. : 0x%X", cmd);
@@ -179,6 +180,28 @@ namespace core {
         alarm(CMD_WAITING_SEC);
     }
 
+    void CMDclient::setWaitingTime() {
+        waiting = true;
+        timer = time(NULL);
+    }
+
+    bool CMDclient::checkWaitingTime(int period) {
+        if (!waiting) {
+            return true;
+        }
+        time_t timer_now = time(NULL);
+        if (abs(timer - timer_now) > period) {
+            waiting = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    void CMDclient::stopWaitingTime() {
+        waiting = false;
+    }
+
     void CMDclient::run() {
         
         DATA sock_buf[MAX_RAW_BUFF] = {0x00,};
@@ -188,70 +211,85 @@ namespace core {
         system::SemLock rtu_lock(sem_rtu_data);
         system::SemLock cmd_lock(sem_cmd_data);
 
-        int len = reqMessage(sendbuf, CLIENT_INIT_RES);
-        newSock.send(sendbuf, len);
-
         createMessageQueue(CLIENT_MQ_NAME);
 
         u_short addr = this->cmdAddr.getAddr();
-        pid_t pid = getpid();
+        pid_t cmd_pid = getpid();
         if (addr > 0) {
             cmd_lock.lock();
             read_mapper(CLIENT_DATA, mapper_list);
             int line = getTotalLine(CLIENT_DATA);
-            mapper_list[line] = add_mapper(pid, addr);
-            write_mapper(CLIENT_DATA, mapper_list);
+            pid_t pid = 0;
+            search_mapper(mapper_list, pid, line, addr);
+            if (pid == 0) {
+                mapper_list[line] = add_mapper(cmd_pid, addr);
+                write_mapper(CLIENT_DATA, mapper_list);
+            }
             print_mapper(mapper_list);
             cmd_lock.unlock();
         }
 
         while (true) {
+            if (checkWaitingTime(40) == false) {
+                DATA result = COMMAND_RESULT_NOT_ACK;
+                this->cmdResult.setResult(result);
+                syslog(LOG_INFO, "SVR >> CMD : Command Client Ack. : 0x%0X", result);
+                int sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                newSock.send(sendbuf, sendByte);
+            }
             // Message Queue 수신 처리
             try {
                 errno = 0;
-                int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
-                if (rcvByte > 0) {
-                    if (mq_buf[0] == STX) {
-                        if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
-                            syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
-                            common::print_hex(mq_buf, rcvByte);
+                if (mq.open(CLIENT_MQ_NAME, getpid())) {
+                    int rcvByte = mq.recv(mq_buf, sizeof(mq_buf));
+                    mq.close();
+                    int sendByte = 0;
+                    if (rcvByte > 0) {
+                        if (mq_buf[0] == STX) {
+                            if (mq_buf[1] == COMMAND_RTU_ACK) {  // Client
+                                syslog(LOG_INFO, "MQ >> SVR : Command RTU Ack.");
+                                common::print_hex(mq_buf, rcvByte);
+                                stopWaitingTime();
 
-                            CommandRtuAck msg;
-                            assert(rcvByte == sizeof(msg));
-                            memcpy((void*)&msg, mq_buf, rcvByte);
-                            if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
-                                syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                                CommandRtuAck msg;
+                                assert(rcvByte == sizeof(msg));
+                                memcpy((void*)&msg, mq_buf, rcvByte);
+                                if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
+                                    syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                                }
+                                msg.print();
+
+                                this->scode = msg.siteCode;
+                                this->dcCommand = msg.dcCommand;
+                                this->acCommand = msg.acCommand;
+                                this->cmdResult = msg.result;
+
+                                setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
+                                update_cmd_log(cmdLog);
+
+                                syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
+                                sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                                newSock.send(sendbuf, sendByte);
+
+                            } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
+                                syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
+                                common::print_hex(mq_buf, rcvByte);
+                                newSock.send(mq_buf, rcvByte);
+
+                            } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
+                                syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
+                                common::print_hex(mq_buf, rcvByte);
+                                newSock.send(mq_buf, rcvByte);
+
+                            } else {
+                                syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
                             }
-                            msg.print();
-
-                            this->scode = msg.siteCode;
-                            this->dcCommand = msg.dcCommand;
-                            this->acCommand = msg.acCommand;
-                            this->cmdResult = msg.result;
-
-                            setup_ack_value(cmdLog, this->cmdResult.getStrResult(), CONTROL_OK);
-                            update_cmd_log(cmdLog);
-
-                            syslog(LOG_INFO, "SVR >> CMD : Command Client Ack.");
-                            len = reqMessage(sock_buf, COMMAND_CLIENT_ACK);
-                            newSock.send(sock_buf, len);
-
-                        } else if (mq_buf[1] == SETUP_INFO_ACK) {  // Client
-                            syslog(LOG_INFO, "MQ >> CMD : Setup Info Ack.");
-                            common::print_hex(mq_buf, rcvByte);
-                            newSock.send(mq_buf, rcvByte);
-
-                        } else if (mq_buf[1] == RTU_STATUS_RES) {  // All Client
-                            syslog(LOG_INFO, "MQ >> CMD : RTU Status Res.");
-                            common::print_hex(mq_buf, rcvByte);
-                            newSock.send(mq_buf, rcvByte);
-
-                        } else {
-                            syslog(LOG_WARNING, "Unknown message type from mq. : 0x%X", mq_buf[1]);
+                        }else {
+                            syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                         }
-                    }else {
-                        syslog(LOG_WARNING, "Error Start of Text from mq. : 0x%X", mq_buf[0]);
                     }
+                } else {
+                    syslog(LOG_WARNING, "Failed to open Client MQ. : %d", getpid());
                 }
             } catch (exception& e) {
                 syslog(LOG_CRIT, "[Error : %s:%d] Exception was caught : %s",__FILE__, __LINE__, e.what());
@@ -267,7 +305,7 @@ namespace core {
                     if (errno == EAGAIN) {
                         continue;   // 다시 mq > socket 순으로 데이터 수신
                     } else {
-                        syslog(LOG_ERR, "CMDclient::run : %s", strerror(errno));
+                        syslog(LOG_ERR, "[Error : %s:%d] Failed : peek() error! : %s",__FILE__, __LINE__, strerror(errno));
                         break;
                     }
                 } else if (rcvByte == 0) {
@@ -280,8 +318,6 @@ namespace core {
                         head.print();
 
                         msgSize = sizeof(head) + head.length + sizeof(MsgTail);
-                        // DATA msg_buf[MAX_RAW_BUFF] = {0x00,};
-                        // memcpy((void*)msg_buf, sock_buf, msgSize);
                         common::print_hex(sock_buf, msgSize);
                     } else {
                         msgSize = rcvByte;
@@ -290,9 +326,27 @@ namespace core {
 
                 rcvByte = newSock.recv(sock_buf, msgSize);
                 if (sock_buf[0] == STX) {
-                    if (sock_buf[1] == COMMAND_CLIENT) {
+                    if (sock_buf[1] == CLIENT_INIT_REQ) {  // Client
+                        syslog(LOG_INFO, "CMD >> SVR : Client Init Req.");
+                        alarm(CMD_WAITING_SEC);
+
+                        ClientInitReq msg;
+                        assert(rcvByte == sizeof(msg));
+                        memcpy((void*)&msg, sock_buf, rcvByte);
+                        if (common::checkCRC((DATA*)&msg, rcvByte, msg.crc8.getCRC8()) == false) {
+                            syslog(LOG_WARNING, "CRC Check Failed. : 0x%02X != 0x%02X", common::calcCRC((DATA*)&msg, rcvByte), msg.crc8.getCRC8());
+                        }
+                        msg.print();
+
+                        syslog(LOG_INFO, "SVR >> CMD : Client Init Res.");
+                        
+                        sendByte = reqMessage(sendbuf, CLIENT_INIT_RES);
+                        newSock.send(sendbuf, sendByte);
+
+                    } else if (sock_buf[1] == COMMAND_CLIENT) {
                         syslog(LOG_INFO, "CMD >> SVR : Command Client.");
                         alarm(CMD_WAITING_SEC);
+                        setWaitingTime();
 
                         CommandClient msg;
                         assert(rcvByte == sizeof(msg));
@@ -324,9 +378,7 @@ namespace core {
                             int line = getTotalLine(RTU_DATA);
                             rtu_lock.unlock();
                             search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
-                            cout << "RTU PIDs : ";
                             for (auto it = pids.begin(); it!= pids.end(); it++) {
-                                cout << *it << " ";
                                 pid = *it;
                                 if (pid != 0) {
                                     syslog(LOG_INFO, "SVR >> MQ : Command RTU. : %d", pid);
@@ -335,16 +387,31 @@ namespace core {
                                     rtu_mq.close();
                                 }
                             }
-                            cout << endl;
 
                             if (pid == 0) {
                                 syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
                                 setup_ack_value(cmdLog, "N", NOT_CONNECT);
+                                stopWaitingTime();
+
+                                DATA result = COMMAND_RESULT_NOT_CONNECT;
+                                this->cmdResult.setResult(result);
+                                
+                                syslog(LOG_INFO, "SVR >> CMD : Command Client Ack. : 0x%0X", result);
+                                sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                                newSock.send(sendbuf, sendByte);
                             }
 
                         } else {
                             syslog(LOG_WARNING, "Unknown Site Code from client. : %s", this->scode.getSiteCode());
                             setup_ack_value(cmdLog, "N", SITE_NOT_FOUND);
+                            stopWaitingTime();
+
+                            DATA result = COMMAND_RESULT_NOT_FOUND;
+                            this->cmdResult.setResult(result);
+                            
+                            syslog(LOG_INFO, "SVR >> CMD : Command Client Ack. : 0x%0X", result);
+                            sendByte = reqMessage(sendbuf, COMMAND_CLIENT_ACK);
+                            newSock.send(sendbuf, sendByte);
                         }
 
                     } else if (sock_buf[1] == SETUP_INFO) {
@@ -360,68 +427,52 @@ namespace core {
                         msg.print();
                         
                         // 값들을 저장
-                        // bool shutdown = false;
+                        bool shutdown = false;
                         this->serverAddr = msg.fromAddr;
                         this->rtuAddr = msg.toAddr;
                         this->action = msg.action;
                         this->scode = msg.siteCode;
                         DATA result = ACTION_RESULT_FAIL;
-                        this->actResult.setResult(result);
-                        sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
-
-                        Mq rtu_mq;
-                        pid_t pid = 0;
-                        std::vector<pid_t> pids;
-                        // data에서 pid를 read.
-                        rtu_lock.lock();
-                        read_mapper(RTU_DATA, mapper_list);
-                        int line = getTotalLine(RTU_DATA);
-                        rtu_lock.unlock();
-                        search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
-                        cout << "RTU PIDs : ";
-                        for (auto it = pids.begin(); it!= pids.end(); it++) {
-                            cout << *it << " ";
-                            pid = *it;
-                            if (pid != 0) {
-                                syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", pid);
-                                rtu_mq.open(RTU_MQ_NAME, pid);
-                                rtu_mq.send(sendbuf, sendByte);
-                                rtu_mq.close();
+                        
+                        // Action I, U, D
+                        char action = this->action.getAction();
+                        if (action == 'Q') {
+                            syslog(LOG_INFO, "Setup Info Action Q!");
+                            shutdown = true;
+                            result = ACTION_RESULT_OK;
+                        } else {
+                            Mq rtu_mq;
+                            pid_t pid = 0;
+                            std::vector<pid_t> pids;
+                            // data에서 pid를 read.
+                            rtu_lock.lock();
+                            read_mapper(RTU_DATA, mapper_list);
+                            int line = getTotalLine(RTU_DATA);
+                            rtu_lock.unlock();
+                            search_mapper(mapper_list, pids, line, this->rtuAddr.getAddr());
+                            for (auto it = pids.begin(); it!= pids.end(); it++) {
+                                pid = *it;
+                                if (pid != 0) {
+                                    syslog(LOG_INFO, "SVR >> MQ : Setup Info Ack. : %d", pid);
+                                    rtu_mq.open(RTU_MQ_NAME, pid);
+                                    rtu_mq.send(sendbuf, sendByte);
+                                    rtu_mq.close();
+                                    result = ACTION_RESULT_OK;
+                                }
                             }
                         }
-                        cout << endl;
 
-                        if (pid == 0) {
-                            syslog(LOG_WARNING, "Not Connected RTU. : %s", this->scode.getSiteCode());
-                            syslog(LOG_INFO, "SVR >> CMD : Setup Info Ack %c!", this->action.getAction());
-                            newSock.send(sendbuf, sendByte);
+                        this->actResult.setResult(result);
+                        syslog(LOG_INFO, "SVR >> CMD : Setup Info Action Ack %c!", this->action.getAction());
+                        sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
+                        newSock.send(sendbuf, sendByte);
+
+                        if (shutdown) {
+                            syslog(LOG_INFO, "Server Shutdown.");
+                            // TODO: kill process
+                            ::system("./pkill.sh");
+                            break;
                         }
-
-                        // // Action I, U, D
-                        // char action = this->action.getAction();
-                        // if (action != 'Q') {
-                        //     if (updateDatabase(true)) {
-                        //         result = ACTION_RESULT_OK;
-                        //     } else {
-                        //         result = ACTION_RESULT_FAIL;
-                        //     }
-                        // } else {
-                        //     syslog(LOG_INFO, "Setup Info Action Q!");
-                        //     shutdown = true;
-                        //     result = ACTION_RESULT_OK;
-                        // }
-                        
-                        // this->actResult.setResult(result);
-                        
-                        // syslog(LOG_INFO, "SVR >> CMD : Setup Info Action Ack %c!", this->action.getAction());
-                        // sendByte = reqMessage(sendbuf, SETUP_INFO_ACK);
-                        // newSock.send(sendbuf, sendByte);
-
-                        // if (shutdown) {
-                        //     syslog(LOG_INFO, "Server Shutdown.");
-                        //     break;
-                        //     // TODO: kill process
-                        // }
 
                     } else if (sock_buf[1] == RTU_STATUS_REQ) {
                         syslog(LOG_INFO, "CMD >> SVR : RTU Status Req.");
@@ -435,20 +486,20 @@ namespace core {
                         }
                         msg.print();
 
-                        this->serverAddr = msg.fromAddr;    // * 확인 *
-                        this->cmdAddr = msg.toAddr;         // * 확인 *
+                        this->serverAddr = msg.fromAddr;
+                        this->cmdAddr = msg.toAddr;
 
-                        // TODO : 모든 Address의 Client MQ에 send 해야함.
+                        // 모든 Address의 Client MQ에 send 해야함.
                         sendByte = reqMessage(sendbuf, RTU_STATUS_RES);
                         Mq cmd_mq;
                         std::vector<pid_t> pids;
                         // data에서 pid를 read.
-                        core::common::MAPPER cmd_mapper_list[MAX_POOL] = {0, };
+                        core::common::Mapper cmd_mapper_list[MAX_POOL];
                         cmd_lock.lock();
                         read_mapper(CLIENT_DATA, cmd_mapper_list);
                         int line = getTotalLine(CLIENT_DATA);
                         cmd_lock.unlock();
-                        core::common::MAPPER* map;
+                        core::common::Mapper* map;
                         for (map = cmd_mapper_list; map < cmd_mapper_list + line; map++) {
                             if (map->pid != 0) {
                                 if (cmd_mq.open(CLIENT_MQ_NAME, map->pid)) {
@@ -511,10 +562,9 @@ namespace core {
 
     bool CMDclient::insert_cmd_log(CmdLog &log) {
         Database db;
-        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
 
@@ -534,7 +584,7 @@ namespace core {
 
         ecode = db.db_query(insert.c_str());
         if (ecode != EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Insert Query Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Insert Query Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         return true;
@@ -546,10 +596,9 @@ namespace core {
         }
         
         Database db;
-        // ECODE ecode = db.db_init("localhost", 3306, "rcontrol", "rcontrol2024", "RControl");
         ECODE ecode = db.db_init();
         if (ecode!= EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Connection Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Connection Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         
@@ -573,7 +622,7 @@ namespace core {
 
         ecode = db.db_query(insert.c_str());
         if (ecode != EC_SUCCESS) {
-            syslog(LOG_ERR, "DB Update Query Error!");
+            syslog(LOG_ERR, "[Error : %s:%d] Failed : DB Update Query Error! : %s",__FILE__, __LINE__, strerror(errno));
             return false;
         }
         return true;

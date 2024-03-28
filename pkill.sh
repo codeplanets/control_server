@@ -1,9 +1,8 @@
 #!/bin/bash
 
-var=$(ps -ef | grep 'controlserver')
-echo process info: ${var}
-
-pid=$(echo ${var} | awk '{print $2}')
-echo process id: ${pid}
-
-kill -2 ${pid}
+echo "Shutdown"
+pkill -2 -f controlserver
+sleep 5
+pkill -9 -f controlserver
+./initsem
+echo "Bye"
