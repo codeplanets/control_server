@@ -123,6 +123,12 @@ int main(int argc, char *argv[]) {
     // Log 설정
     setlogmask (LOG_UPTO (LOG_INFO));
     openlog("Control Server", LOG_CONS|LOG_PERROR, LOG_USER);
+
+    // Multiple Running 방지
+    if (common::isRunning() == true) {
+        printf("[Error : %s:%d] Failed : Already running server! : %s",__FILE__, __LINE__, strerror(errno));
+        exit(EXIT_SUCCESS);
+    }
     syslog(LOG_INFO, "Running Control Server!");
 
     // Zombie Process 방지 Signal 등록
@@ -138,12 +144,6 @@ int main(int argc, char *argv[]) {
     // semaphore 정리
     sem_unlink(sem_rtu_status.c_str());
     shm_unlink(shm_rtu_status.c_str());
-
-    // Multiple Running 방지
-    if (common::isRunning() == true) {
-        syslog(LOG_ERR, "[Error : %s:%d] Failed : Already running server! : %s",__FILE__, __LINE__, strerror(errno));
-        exit(EXIT_SUCCESS);
-    }
 
     // Set Data
     for (int i = 0; i < 255; i++) {
