@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
         printf("[Error : %s:%d] Failed : Already running server! : %s",__FILE__, __LINE__, strerror(errno));
         exit(EXIT_SUCCESS);
     }
-    syslog(LOG_INFO, "Running Control Server!");
+    syslog(LOG_INFO, "Running Control Server v1.1");
 
     // Zombie Process 방지 Signal 등록
     setIntSignal();
